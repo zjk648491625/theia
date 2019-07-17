@@ -141,7 +141,7 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
             id: ProblemsCommands.COLLAPSE_ALL_TOOLBAR.id,
             command: ProblemsCommands.COLLAPSE_ALL_TOOLBAR.id,
             tooltip: 'Collapse All',
-            priority: 0,
+            priority: 1,
         });
     }
 

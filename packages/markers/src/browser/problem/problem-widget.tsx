@@ -46,6 +46,23 @@ export class ProblemWidget extends TreeWidget {
         this.addClipboardListener(this.node, 'copy', e => this.handleCopy(e));
     }
 
+    filterTree(query: string): void {
+        console.log('filterTree called!');
+        if (MarkerRootNode.is(this.model.root)) {
+            console.log('MarkerRootNode.is(): true');
+            const children = this.model.root.children;
+            const filteredChildren: TreeNode[] = [];
+            children.forEach(a => {
+                if (a.name.includes(query)) {
+                    filteredChildren.push(a);
+                }
+                console.log('child name: ', a.name);
+            });
+            this.model.root.children = filteredChildren;
+        }
+        this.update();
+    }
+
     storeState(): object {
         // no-op
         return {};
