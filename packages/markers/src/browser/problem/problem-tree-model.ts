@@ -58,4 +58,21 @@ export class ProblemTreeModel extends MarkerTreeModel {
             this.problemManager.setMarkers(uri, owner, diagnostics);
         }
     }
+
+    /**
+     * Show the given tree node.
+     * @param node {TreeNode} the tree node.
+     */
+    showNode(node: TreeNode): void {
+        (node.visible as boolean) = true;
+    }
+
+    /**
+     * Hide the given tree node.
+     * @param node {TreeNode} the tree node.
+     */
+    hideNode(node: TreeNode): void {
+        (node.visible as boolean) = false;
+    }
+
 }

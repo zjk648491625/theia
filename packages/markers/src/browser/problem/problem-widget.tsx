@@ -20,7 +20,7 @@ import { ProblemMarker } from '../../common/problem-marker';
 import { ProblemTreeModel } from './problem-tree-model';
 import { MarkerInfoNode, MarkerNode, MarkerRootNode } from '../marker-tree';
 import { TreeWidget, TreeProps, ContextMenuRenderer, TreeNode, NodeProps, TreeModel } from '@theia/core/lib/browser';
-import { DiagnosticSeverity } from 'vscode-languageserver-types';
+import { DiagnosticSeverity, Diagnostic } from 'vscode-languageserver-types';
 import * as React from 'react';
 
 export const PROBLEMS_WIDGET_ID = 'problems';
@@ -44,6 +44,78 @@ export class ProblemWidget extends TreeWidget {
         this.addClass('theia-marker-container');
 
         this.addClipboardListener(this.node, 'copy', e => this.handleCopy(e));
+    }
+
+    /**
+     * Filter the problems tree based on the filter query.
+     * @param query {string} the filter query.
+     */
+    filter(query: string): void {
+        if (MarkerRootNode.is(this.model.root)) {
+            const root = this.model.root;
+            // Get the list of `MarkerInfoNode`.
+            const markerInfoNodes: MarkerInfoNode[] = root.children.filter(MarkerInfoNode.is);
+            // Get the list of `MarkerNode`.
+            const markerNodes: MarkerNode[] = [];
+            markerInfoNodes.forEach(node => {
+                const children = node.children as MarkerNode[];
+                children.forEach(child => {
+                    markerNodes.push(child);
+                });
+            });
+            markerNodes.forEach(node => {
+                if (ProblemMarker.is(node.marker)) {
+                    if (this.doesMatchMarker(node.marker, query)) {
+                        this.model.showNode(node);
+                    } else {
+                        this.model.hideNode(node);
+                    }
+                }
+            });
+        }
+        this.update();
+    }
+
+    /**
+     * Determine if a problem marker matches the filter query.
+     * @param marker {ProblemMarker} the problem marker.
+     * @param filterQuery {string} the user inputted filter query.
+     *
+     * @returns `true` if the problem marker is matched by the filter query.
+     */
+    protected doesMatchMarker(marker: ProblemMarker, filterQuery: string): boolean {
+
+        /**
+         * Normalize a given string.
+         * Normalization includes setting the string to lowercase.
+         * @param str {string} the string to normalize.
+         */
+        function normalize(str: string) {
+            return str.trim().toLowerCase();
+        }
+
+        // Normalize the query.
+        const query = normalize(filterQuery);
+
+        // Get the marker data.
+        const data: Diagnostic = marker.data;
+
+        // Get individual marker data information.
+        const message: string = normalize(data.message);
+        const source: string = data.source ? normalize(data.source) : '';
+        const code: string = data.code ? normalize(data.code.toString()) : '';
+        const severity: string = data.severity ? normalize(this.getSeverityClass(data.severity)) : '';
+        const info: string = data.relatedInformation ? normalize(data.relatedInformation.map(a => a.message).toString()) : '';
+
+        // Return `true` if any of the properties includes the search query.
+        return (
+            message.includes(query) ||
+            source.includes(query) ||
+            code.includes(query) ||
+            severity.includes(query) ||
+            info.includes(query)
+        );
+        return [...message, ...source, ...code, ...severity, ...info].some((a: string) => a.includes(query));
     }
 
     storeState(): object {

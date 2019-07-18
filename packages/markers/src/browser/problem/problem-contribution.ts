@@ -23,7 +23,6 @@ import { ProblemManager, ProblemStat } from './problem-manager';
 import { ProblemWidget, PROBLEMS_WIDGET_ID } from './problem-widget';
 import { MenuPath, MenuModelRegistry } from '@theia/core/lib/common/menu';
 import { Command, CommandRegistry } from '@theia/core/lib/common/command';
-import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { SelectionService } from '@theia/core/lib/common/selection-service';
 import { ProblemSelection } from './problem-selection';
 
@@ -42,6 +41,9 @@ export namespace ProblemsCommands {
         id: 'problems.collapse.all.toolbar',
         iconClass: 'collapse-all'
     };
+    export const FILTER_TOOLBAR: Command = {
+        id: 'problems.filter',
+    };
     export const COPY: Command = {
         id: 'problems.copy'
     };
@@ -51,11 +53,12 @@ export namespace ProblemsCommands {
 }
 
 @injectable()
-export class ProblemContribution extends AbstractViewContribution<ProblemWidget> implements FrontendApplicationContribution, TabBarToolbarContribution {
+export class ProblemContribution extends AbstractViewContribution<ProblemWidget> implements FrontendApplicationContribution {
 
     @inject(ProblemManager) protected readonly problemManager: ProblemManager;
     @inject(StatusBar) protected readonly statusBar: StatusBar;
     @inject(SelectionService) protected readonly selectionService: SelectionService;
+    @inject(CommandRegistry) protected readonly commandRegistry: CommandRegistry;
 
     constructor() {
         super({
@@ -99,6 +102,11 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
             isVisible: widget => this.withWidget(widget, () => true),
             execute: widget => this.withWidget(widget, () => this.collapseAllProblems())
         });
+        commands.registerCommand(ProblemsCommands.FILTER_TOOLBAR, {
+            isEnabled: (_arg: string, widget) => this.withWidget(widget, () => true),
+            isVisible: (_arg: string, widget) => this.withWidget(widget, () => true),
+            execute: (arg: string, widget) => this.withWidget(widget, () => this.filterProblems(arg)),
+        });
         commands.registerCommand(ProblemsCommands.COPY,
             new ProblemSelection.CommandHandler(this.selectionService, {
                 multi: false,
@@ -136,15 +144,6 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
         });
     }
 
-    async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
-        toolbarRegistry.registerItem({
-            id: ProblemsCommands.COLLAPSE_ALL_TOOLBAR.id,
-            command: ProblemsCommands.COLLAPSE_ALL_TOOLBAR.id,
-            tooltip: 'Collapse All',
-            priority: 0,
-        });
-    }
-
     protected async collapseAllProblems(): Promise<void> {
         const { model } = await this.widget;
         const root = model.root as CompositeTreeNode;
@@ -153,6 +152,11 @@ export class ProblemContribution extends AbstractViewContribution<ProblemWidget>
         if (SelectableTreeNode.is(firstChild)) {
             model.selectNode(firstChild);
         }
+    }
+
+    protected async filterProblems(query: string): Promise<void> {
+        const widget = await this.widget;
+        widget.filter(query);
     }
 
     protected addToClipboard(content: string): void {
