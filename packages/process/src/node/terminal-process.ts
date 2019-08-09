@@ -24,6 +24,7 @@ import { MultiRingBuffer, MultiRingBufferReadableStream } from './multi-ring-buf
 import { DevNullStream } from './dev-null-stream';
 import { signame } from './utils';
 import { Writable } from 'stream';
+import * as path from 'path';
 
 export type QuotingType = 'escaped' | 'strong' | 'weak';
 
@@ -51,7 +52,7 @@ export const RuntimeQuotingMap: { [key in string]: RuntimeQuotingTypes | undefin
         strong: '"',
         weak: '"',
         escaped: '^',
-        shouldBeEscaped: ['%', '<', '>', '{', '}', '"'],
+        shouldBeEscaped: "&()[]{}^=;!'+,`~".split(''),
     }
 };
 
@@ -69,7 +70,7 @@ export interface TerminalProcessOptions extends ProcessOptions<string | QuotedSt
     options?: {
         shell?: {
             executable: string
-            args: string[]
+            args?: string[]
         } | boolean;
     }
 }
@@ -112,7 +113,7 @@ export class TerminalProcess extends Process {
      *
      * @param options
      */
-    protected static createShellOptions(options: TerminalProcessOptions): RawProcessOptions {
+    protected static createShellOptions(options: TerminalProcessOptions): ProcessOptions {
         const windows = process.platform === 'win32';
         let runtime: string | undefined;
         let execArgs: string[] | undefined;
@@ -125,9 +126,9 @@ export class TerminalProcess extends Process {
         }
 
         // Apply fallback values in case no specific runtime was specified:
-        runtime = runtime || windows ?
+        runtime = path.basename(runtime || windows ?
             process.env['COMSPEC'] || 'cmd.exe' :
-            process.env['SHELL'] || 'sh';
+            process.env['SHELL'] || 'sh');
         execArgs = execArgs || windows ?
             ['/c'] : ['-c'];
 
@@ -168,10 +169,10 @@ export class TerminalProcess extends Process {
             }
         }
 
-        return <RawProcessOptions>{
+        return {
             ...options,
             command: runtime,
-            args: [...execArgs, command],
+            args: command,
         };
     }
 

@@ -58,7 +58,7 @@ export enum ProcessType {
  */
 export interface ProcessOptions<T = string> {
     readonly command: string,
-    args?: T[],
+    args?: T extends any[] ? T : T[],
     options?: {
         // tslint:disable-next-line:no-any
         [key: string]: any
