@@ -31,14 +31,31 @@ struct AVCodec
     enum AVCodecID id;
 };
 
+// /**
+//  * https://github.com/FFmpeg/FFmpeg/blob/release/3.2/libavcodec/avcodec.h#L660-L688
+//  */
+// struct AVCodecDescriptor
+// {
+//     enum AVCodecID id;
+//     enum AVMediaType type;
+//     const char *name, *long_name;
+// };
+
+// /**
+//  * https://github.com/FFmpeg/FFmpeg/blob/release/3.2/libavfilter/avfilter.h#L144-L297
+//  */
+// struct AVFilter
+// {
+//     const char *name;
+//     const char *description;
+// };
+
 /**
- * https://github.com/FFmpeg/FFmpeg/blob/release/3.2/libavcodec/avcodec.h#L660-L688
+ *
  */
-struct AVCodecDescriptor
+struct AVBitStreamFilter
 {
-    enum AVCodecID id;
-    enum AVMediaType type;
-    const char *name, *long_name;
+    const char *name;
 };
 
 /**
@@ -49,23 +66,18 @@ struct FFMPEG_Library
     void *handle;
 
     /**
-     * https://github.com/FFmpeg/FFmpeg/blob/release/3.2/libavcodec/avcodec.h#L6228
-     *
-     * We use AVCodecDescriptor because it is the only structure that we can
-     * query on all platforms. Windows' ffmpeg.dll does not export a
-     * `av_codec_next` function, only `avcodec_descriptor_next`.
-     * Also it seems that this "descriptor" concept is the recommended API.
+     * https://github.com/FFmpeg/FFmpeg/blob/121bf1b3b8de8de82856e42b8ed5156d4d78b637/libavcodec/avcodec.h#L4120
      */
-    struct AVCodecDescriptor *(*avcodec_descriptor_next)(const struct AVCodecDescriptor *);
+    const struct AVCodec *(*av_codec_iterate)(void **);
 
     /**
-     * https://github.com/FFmpeg/FFmpeg/blob/release/3.2/libavcodec/avcodec.h#L4646
+     * https://github.com/FFmpeg/FFmpeg/blob/121bf1b3b8de8de82856e42b8ed5156d4d78b637/libavcodec/avcodec.h#L5914
      */
-    struct AVCodec *(*avcodec_find_decoder)(enum AVCodecID);
+    const struct AVBitStreamFilter *(*av_bsf_iterate)(void **);
 };
 
 #define NULL_FFMPEG_LIBRARY \
-    (struct FFMPEG_Library) { NULL, NULL, NULL }
+    (struct FFMPEG_Library) { NULL, NULL, NULL, }
 
 /**
  * Loader that will inject the loaded functions into a FFMPEG_Library structure.

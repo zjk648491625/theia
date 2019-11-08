@@ -98,12 +98,22 @@ exports.libffmpegAbsolutePath = function ({ platform, electronDist } = {}) {
 /**
  * Return the list of codecs for the given ffmpeg shared library.
  *
- * @param {libffmpegDistributionOptions} [options]
- * @return {String}
+ * @param {String} [absolutePath]
+ * @return {Array<Codec>}
  */
 exports.libffmpegCodecs = function (absolutePath) {
     return ffmpeg.codecs(absolutePath);
 };
+
+/**
+ * Return the list of filters for the given ffmpeg shared library.
+ *
+ * @param {String} [absolutePath]
+ * @return {Array<Filter>}
+ */
+exports.libffmpegFilters = function (absolutePath) {
+    return ffmpeg.filters(absolutePath);
+}
 
 /**
  * @typedef {Object} File
@@ -116,6 +126,12 @@ exports.libffmpegCodecs = function (absolutePath) {
  * @property {Number} id
  * @property {String} name
  * @property {String} longName
+ */
+
+/**
+ * @typedef {Object} Filter
+ * @property {String} name
+ * @property {String} description
  */
 
 /**

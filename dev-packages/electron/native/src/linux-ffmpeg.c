@@ -30,15 +30,16 @@ char *load_ffmpeg_library(struct FFMPEG_Library *library, char *library_path)
     {
         goto error;
     }
-   
-    struct AVCodecDescriptor *(*avcodec_descriptor_next)(const struct AVCodecDescriptor *) = dlsym(handle, "avcodec_descriptor_next");
+
+    const struct AVCodec *(*av_codec_iterate)(void **) = dlsym(handle, "av_codec_iterate");
     error = dlerror();
     if (error != NULL)
     {
         goto error;
     }
 
-    struct AVCodec *(*avcodec_find_decoder)(enum AVCodecID) = dlsym(handle, "avcodec_find_decoder");
+
+    const struct AVBitStreamFilter *(*av_bsf_iterate)(void **) = dlsym(handle, "av_bsf_iterate");
     error = dlerror();
     if (error != NULL)
     {
@@ -46,8 +47,8 @@ char *load_ffmpeg_library(struct FFMPEG_Library *library, char *library_path)
     }
 
     library->handle = handle;
-    library->avcodec_descriptor_next = avcodec_descriptor_next;
-    library->avcodec_find_decoder = avcodec_find_decoder;
+    library->av_codec_iterate = av_codec_iterate;
+    library->av_bsf_iterate = av_bsf_iterate;
     return NULL;
 
 error:

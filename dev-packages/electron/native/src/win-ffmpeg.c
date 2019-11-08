@@ -35,19 +35,20 @@ char *load_ffmpeg_library(struct FFMPEG_Library *library, char *library_path)
         goto error;
     }
 
-    struct AVCodecDescriptor *(*av_codec_next)(const struct AVCodecDescriptor *) = (struct AVCodecDescriptor * (*)(const struct AVCodecDescriptor *))
-        GetProcAddress(handle, "avcodec_descriptor_next");
-    if (!av_codec_next)
+    const struct AVCodec *(*av_codec_iterate)(void **) = (const struct AVCodec *(*)(void **))
+        GetProcAddress(handle, "av_codec_iterate");
+    if (av_codec_iterate == NULL)
     {
-        error = error_function_not_found;
+        error = error_function_not_found
         goto error;
     }
 
-    struct AVCodec *(*avcodec_find_decoder)(enum AVCodecID) = (struct AVCodec * (*)(enum AVCodecID))
-        GetProcAddress(handle, "avcodec_find_decoder");
-    if (!avcodec_find_decoder)
+
+    const struct AVBitStreamFilter *(*av_bsf_iterate)(void **) = (const struct AVBitStreamFilter *(*)(void **))
+        GetProcAddress(handle, "av_bsf_iterate");
+    if (av_bsf_iterate == NULL)
     {
-        error = error_function_not_found;
+        error = error_function_not_found
         goto error;
     }
 

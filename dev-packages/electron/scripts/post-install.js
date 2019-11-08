@@ -76,6 +76,8 @@ async function main() {
             subprocess => writeToStream(subprocess, log));
         await fork('electron-codecs-test.js', [], { stdio: [0, 'pipe', 'pipe', 'ipc'] },
             subprocess => writeToStream(subprocess, log));
+        await fork('electron-filters-test.js', [], { stdio: [0, 'pipe', 'pipe', 'ipc'] },
+            subprocess => writeToStream(subprocess, log));
     }
 }
 
