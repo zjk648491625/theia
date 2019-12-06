@@ -15,8 +15,8 @@
  ********************************************************************************/
 
 import { injectable, inject } from 'inversify';
-import { CommandRegistry, MenuModelRegistry } from '@theia/core/lib/common';
-import { CommonMenus, AbstractViewContribution, FrontendApplicationContribution, FrontendApplication } from '@theia/core/lib/browser';
+import { CommandRegistry, MenuModelRegistry, MessageService } from '@theia/core/lib/common';
+import { CommonMenus, AbstractViewContribution, FrontendApplicationContribution, FrontendApplication, PreferenceService, PreferenceScope } from '@theia/core/lib/browser';
 import { GettingStartedWidget } from './getting-started-widget';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -38,7 +38,13 @@ export class GettingStartedContribution extends AbstractViewContribution<Getting
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService;
 
-    constructor() {
+    @inject(PreferenceService)
+    protected readonly preferenceService: PreferenceService;
+
+    @inject(MessageService)
+    protected readonly messageService: MessageService;
+
+    constructor () {
         super({
             widgetId: GettingStartedWidget.ID,
             widgetName: GettingStartedWidget.LABEL,
@@ -59,6 +65,20 @@ export class GettingStartedContribution extends AbstractViewContribution<Getting
     registerCommands(registry: CommandRegistry): void {
         registry.registerCommand(GettingStartedCommand, {
             execute: () => this.openView({ reveal: true }),
+        });
+        registry.registerCommand({
+            id: 'vince-test-pref',
+            label: 'Test Preference',
+            category: 'Vince'
+        }, {
+            execute: () => {
+                const value = this.preferenceService.get('editor.acceptSuggestionOnCommitCharacter');
+                this.preferenceService.set('editor.acceptSuggestionOnCommitCharacter', !value, PreferenceScope.User);
+                this.messageService.info(`editor.acceptSuggestionOnCommitCharacter value updated: ${!value}`);
+                this.preferenceService.onPreferenceChanged(e => {
+                    console.log(`preference updated: { name: ${e.preferenceName} }`);
+                });
+            }
         });
     }
 
