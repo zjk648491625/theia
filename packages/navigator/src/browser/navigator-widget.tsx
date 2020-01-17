@@ -18,7 +18,7 @@ import { injectable, inject, postConstruct } from 'inversify';
 import { Message } from '@phosphor/messaging';
 import URI from '@theia/core/lib/common/uri';
 import { CommandService, SelectionService } from '@theia/core/lib/common';
-import { CommonCommands, CorePreferences, ViewContainerTitleOptions, Key } from '@theia/core/lib/browser';
+import { CommonCommands, CorePreferences, ViewContainerTitleOptions, Key, SelectableTreeNode } from '@theia/core/lib/browser';
 import {
     ContextMenuRenderer, ExpandableTreeNode,
     TreeProps, TreeModel, TreeNode
@@ -52,7 +52,7 @@ export class FileNavigatorWidget extends FileTreeWidget {
     @inject(NavigatorContextKeyService)
     protected readonly contextKeyService: NavigatorContextKeyService;
 
-    constructor(
+    constructor (
         @inject(TreeProps) readonly props: TreeProps,
         @inject(FileNavigatorModel) readonly model: FileNavigatorModel,
         @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
@@ -83,6 +83,14 @@ export class FileNavigatorWidget extends FileTreeWidget {
                     }
                 }
 
+            }),
+            this.workspaceService.onDidCreateFileFolder(async uri => {
+
+                setTimeout(() => {
+                    const nodes = [...this.model.getNodesByUri(new URI(uri))];
+                    console.log(`nodes len: ${nodes.length}`);
+                    this.model.selectNode(nodes[0] as SelectableTreeNode);
+                }, 5000);
             })
         ]);
     }
