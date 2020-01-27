@@ -35,6 +35,7 @@ import { FileSystemCommands } from '@theia/filesystem/lib/browser/filesystem-fro
 import { NavigatorDiff, NavigatorDiffCommands } from './navigator-diff';
 import { UriSelection } from '@theia/core/lib/common/selection';
 import { PreferenceService } from '@theia/core/lib/browser';
+import URI from '@theia/core/lib/common/uri';
 
 export namespace FileNavigatorCommands {
     export const REVEAL_IN_NAVIGATOR: Command = {
@@ -64,6 +65,11 @@ export namespace FileNavigatorCommands {
     };
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
+    };
+    export const CREATE_FILE_AND_REVEAL: Command = {
+        id: 'navigator.createFileAndReveal',
+        category: 'File',
+        label: 'New File'
     };
 }
 
@@ -242,6 +248,37 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: () => this.navigatorDiff.isFirstFileSelected,
             isVisible: () => this.navigatorDiff.isFirstFileSelected
         });
+        registry.registerCommand(FileNavigatorCommands.CREATE_FILE_AND_REVEAL, {
+            execute: async () => {
+                const uri: URI | undefined = await registry.executeCommand(WorkspaceCommands.NEW_FILE.id);
+                if (uri) {
+                    console.log(`uri: ${uri}`);
+                    const widget = await this.widget;
+                    const model = widget.model;
+                    const uriNodes = model.getNodesByUri(uri);
+                    let status = false;
+
+                    for (const node of uriNodes) {
+                        if (SelectableTreeNode.is(node)) {
+                            model.selectNode(node);
+                            status = true;
+                            break;
+                        }
+                    }
+                    if (!status) {
+                        const treeChange = model.onChanged(() => {
+                            for (const node of model.getNodesByUri(uri)) {
+                                if (SelectableTreeNode.is(node)) {
+                                    model.selectNode(node);
+                                    break;
+                                }
+                            }
+                            treeChange.dispose();
+                        });
+                    }
+                }
+            }
+        });
     }
 
     protected withWidget<T>(widget: Widget | undefined = this.tryGetWidget(), cb: (navigator: FileNavigatorWidget) => T): T | false {
@@ -312,7 +349,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         });
 
         registry.registerMenuAction(NavigatorContextMenu.NAVIGATION, {
-            commandId: WorkspaceCommands.NEW_FILE.id
+            commandId: FileNavigatorCommands.CREATE_FILE_AND_REVEAL.id
         });
         registry.registerMenuAction(NavigatorContextMenu.NAVIGATION, {
             commandId: WorkspaceCommands.NEW_FOLDER.id
@@ -383,9 +420,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             priority: 1,
         });
         this.registerMoreToolbarItem({
-            id: WorkspaceCommands.NEW_FILE.id,
-            command: WorkspaceCommands.NEW_FILE.id,
-            tooltip: WorkspaceCommands.NEW_FILE.label,
+            id: FileNavigatorCommands.CREATE_FILE_AND_REVEAL.id,
+            command: FileNavigatorCommands.CREATE_FILE_AND_REVEAL.id,
+            tooltip: FileNavigatorCommands.CREATE_FILE_AND_REVEAL.label,
             group: NavigatorMoreToolbarGroups.NEW_OPEN,
         });
         this.registerMoreToolbarItem({

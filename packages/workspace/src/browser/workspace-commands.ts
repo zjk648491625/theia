@@ -197,7 +197,8 @@ export class WorkspaceCommandContribution implements CommandContribution {
             }
         });
         registry.registerCommand(WorkspaceCommands.NEW_FILE, this.newWorkspaceRootUriAwareCommandHandler({
-            execute: uri => this.getDirectory(uri).then(parent => {
+            execute: async uri => {
+                const parent = await this.getDirectory(uri);
                 if (parent) {
                     const parentUri = new URI(parent.uri);
                     const { fileName, fileExtension } = this.getDefaultFileConfig();
@@ -210,16 +211,16 @@ export class WorkspaceCommandContribution implements CommandContribution {
                         validate: name => this.validateFileName(name, parent, true)
                     }, this.labelProvider);
 
-                    dialog.open().then(name => {
-                        if (name) {
-                            const fileUri = parentUri.resolve(name);
-                            this.fileSystem.createFile(fileUri.toString()).then(() => {
-                                open(this.openerService, fileUri);
-                            });
-                        }
-                    });
+                    const filename = await dialog.open();
+                    if (filename) {
+                        const fileUri = parentUri.resolve(filename);
+                        await this.fileSystem.createFile(fileUri.toString());
+                        await open(this.openerService, fileUri);
+                        return fileUri;
+                    }
                 }
-            })
+                return undefined;
+            }
         }));
         registry.registerCommand(WorkspaceCommands.NEW_FOLDER, this.newWorkspaceRootUriAwareCommandHandler({
             execute: uri => this.getDirectory(uri).then(parent => {
@@ -443,7 +444,7 @@ export class WorkspaceCommandContribution implements CommandContribution {
 
 export class WorkspaceRootUriAwareCommandHandler extends UriAwareCommandHandler<URI> {
 
-    constructor(
+    constructor (
         protected readonly workspaceService: WorkspaceService,
         protected readonly selectionService: SelectionService,
         protected readonly handler: UriCommandHandler<URI>
