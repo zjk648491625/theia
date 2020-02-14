@@ -42,6 +42,10 @@ export class MarkerTreeLabelProvider implements LabelProviderContribution {
         return this.labelProvider.getName(node.uri);
     }
 
+    getLongName(node: MarkerInfoNode): string {
+        return this.labelProvider.getName(node.uri.parent);
+    }
+
     getDescription(node: MarkerInfoNode): string {
         return this.labelProvider.getLongName(node.uri.parent);
     }
