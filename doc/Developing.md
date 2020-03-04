@@ -81,32 +81,41 @@ Some additional tools and libraries are needed depending on your platform:
 
 To build and run the browser example:
 
-    git clone https://github.com/eclipse-theia/theia \
+```sh
+git clone https://github.com/eclipse-theia/theia \
     && cd theia \
     && yarn \
+    && yarn build:all \
     && cd examples/browser \
-    && yarn run start
+    && yarn start
+```
 
 Start your browser on http://localhost:3000.
 
 To build and run the Electron example:
 
-    git clone https://github.com/eclipse-theia/theia \
+```sh
+git clone https://github.com/eclipse-theia/theia \
     && cd theia \
     && yarn \
-    && yarn run rebuild:electron \
+    && yarn build:all \
+    && yarn rebuild:electron \
     && cd examples/electron \
-    && yarn run start
+    && yarn start
+```
 
 ### Run the browser example with SSL
 
 To run the browser example using SSL use:
 
-    git clone https://github.com/eclipse-theia/theia \
+```sh
+git clone https://github.com/eclipse-theia/theia \
     && cd theia \
     && yarn \
+    && yarn build:all \
     && cd examples/browser \
     && yarn run start --ssl --cert /path/to/cert.crt --certkey /path/to/certkey.key
+```
 
 Start your browser on https://localhost:3000.
 
@@ -123,13 +132,17 @@ You can start by prefixing any GitHub URL in the Theia repository with `gitpod.i
 
 ## Clone the repository
 
-    git clone https://github.com/eclipse-theia/theia
+```sh
+git clone https://github.com/eclipse-theia/theia
+```
 
 The directory containing the Theia repository will now be referred to as
 `$THEIA`, so if you want to copy-paste the examples, you can set the `THEIA`
 variable in your shell:
 
-    THEIA=$PWD/theia
+```sh
+export THEIA="$PWD/theia"
+```
 
 ## The repository structure
 
@@ -150,7 +163,8 @@ installing
 You can download dependencies and build it using:
 
     cd $THEIA
-    yarn
+    yarn # install dependencies
+    yarn build:all # build typescript sources and bundle apps
 
 This command downloads dev dependencies, links and builds all packages.
 To learn more and understand precisely what's going on, please look at scripts in [package.json](../package.json).
@@ -159,43 +173,57 @@ To learn more and understand precisely what's going on, please look at scripts i
 
 From the root:
 
- `npx run build @theia/package-name`
+```sh
+npx run build @theia/package-name
+```
 
 From the package:
 
-`yarn --ignore-scripts && yarn build`
+```sh
+yarn --ignore-scripts && yarn build
+```
 
 ## Run the browser-based example application
 
 We can start the application from the [examples/browser](../examples/browser) directory with:
 
-    yarn run start
+```sh
+yarn start
+```
 
 This command starts the backend application listening on port `3000`. The frontend application should be available on http://localhost:3000.
 
 If you rebuild native Node.js packages for Electron then rollback these changes
 before starting the browser example by running from the root directory:
 
-    yarn run rebuild:browser
+```sh
+yarn rebuild:browser
+```
 
 ## Run the Electron-based example application
 
 From the root directory run:
 
-    yarn run rebuild:electron
+```sh
+yarn rebuild:electron
+```
 
 This command rebuilds native Node.js packages against the version of Node.js
 used by Electron.
 
 It can also be started from the [examples/electron](../examples/electron) directory with:
 
-    yarn run start
+```sh
+yarn start
+```
 
 ## Rebuilding
 
 In the root directory run:
 
-    yarn run build
+```sh
+yarn build
+```
 
 ## Watching
 
@@ -203,25 +231,33 @@ In the root directory run:
 
 To rebuild each time a change is detected run:
 
-    yarn run watch
+```sh
+yarn watch
+```
 
 ### Watch the examples
 
 To rebuild each time a change is detected in frontend or backend you can run:
 
-    yarn run watch
+```sh
+yarn watch
+```
 
 ### Watch a specific package
 
 You can use `npx` to watch a single package:
 
-    npx run watch @theia/the-package-name
+```sh
+npx run watch @theia/the-package-name
+```
 
 ### Watch a specific package and its local upstream dependencies
 
 Let assume you have to work for instance in the `@theia/navigator` extension. But you might have to apply changes in any of its upstream dependencies such as `@theia/filesystem` or `@theia/core`, you can either do `yarn watch` which could be super expensive, as it watches all the packages. Or you can do `npx run watch @theia/navigator` and `npx run watch @theia/filesystem` and `npx run watch @theia/core` in three individual shells. Or you can do the following single-liner:
 
-    npx run watch @theia/navigator --include-filtered-dependencies --parallel
+```sh
+npx run watch @theia/navigator --include-filtered-dependencies --parallel
+```
 
 ## Debugging
 
@@ -317,7 +353,9 @@ You should be able to see message of `[${server-name}: ${server-PID}]: IPC start
 
 ## Code coverage
 
-    yarn run test
+```sh
+yarn test
+```
 
 By default, this will generate the code coverage for the tests in an HTML
 format, which can be easily viewed with your browser (Chrome/Firefox/Edge/Safari
@@ -334,7 +372,9 @@ etc.) by opening `packages/<package name>/coverage/index.html`.
 Clone, build and run Theia.
 Using Git Bash as administrator:
 
-    git clone https://github.com/eclipse-theia/theia.git && cd theia && yarn && yarn --cwd examples\browser start
+```sh
+git clone https://github.com/eclipse-theia/theia.git && cd theia && yarn && yarn --cwd examples\browser start
+```
 
 If you do not have Git Bash installed on your system, [get one](https://gitforwindows.org/), or use `scoop`: `scoop install git`.
 
@@ -347,7 +387,9 @@ To avoid ENOSPC errors, increase your default inotify watches.
 
 It can be done like so:
 
-    echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+```sh
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+```
 
 ### Windows
 
@@ -374,7 +416,9 @@ If you're still struggling with the build but you use Windows 10, the you can en
 
 You need to have the Xcode command line tools installed in order to build and run Theia. You can install the tools by running
 
-    xcode-select --install
+```sh
+xcode-select --install
+```
 
 If you already have Xcode installed, but you see the `xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance` error, you need to run the following command to fix it: `sudo xcode-select --switch /Library/Developer/CommandLineTools`.
 

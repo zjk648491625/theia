@@ -54,7 +54,6 @@
     "@theia/workspace": "^0.16.0"
   },
   "scripts": {
-    "prepare": "yarn run clean && yarn build",
     "lint": "theiaext lint",
     "clean": "theia clean",
     "build": "theia build --mode development",

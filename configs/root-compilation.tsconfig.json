@@ -132,9 +132,6 @@
     },
     {
       "path": "../examples/api-samples/compile.tsconfig.json"
-    },
-    {
-      "path": "../examples/electron/compile.tsconfig.json"
     }
   ]
 }

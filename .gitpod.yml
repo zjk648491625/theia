@@ -12,7 +12,7 @@ ports:
 - port: 5900
   onOpen: ignore
 tasks:
-- init: yarn
+- init: yarn && yarn ci
   command: >
     jwm &
     yarn --cwd examples/browser start ../.. --hostname=0.0.0.0
