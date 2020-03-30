@@ -35,6 +35,7 @@ import { WorkspaceCompareHandler } from './workspace-compare-handler';
 import { FileDownloadCommands } from '@theia/filesystem/lib/browser/download/file-download-command-contribution';
 import { FileSystemCommands } from '@theia/filesystem/lib/browser/filesystem-frontend-contribution';
 import { WorkspaceInputDialog } from './workspace-input-dialog';
+import { RemoveWorkspaceFolderDialog } from './workspace-confirm-dialog';
 
 const validFilename: (arg: string) => boolean = require('valid-filename');
 
@@ -406,25 +407,14 @@ export class WorkspaceCommandContribution implements CommandContribution {
     protected async removeFolderFromWorkspace(uris: URI[]): Promise<void> {
         const roots = new Set(this.workspaceService.tryGetRoots().map(r => r.uri));
         const toRemove = uris.filter(u => roots.has(u.toString()));
-        if (toRemove.length > 0) {
-            const messageContainer = document.createElement('div');
-            messageContainer.textContent = 'Remove the following folders from workspace? (note: nothing will be erased from disk)';
-            const list = document.createElement('ul');
-            list.style.listStyleType = 'none';
-            toRemove.forEach(u => {
-                const listItem = document.createElement('li');
-                listItem.textContent = u.displayName;
-                list.appendChild(listItem);
-            });
-            messageContainer.appendChild(list);
-            const dialog = new ConfirmDialog({
-                title: 'Remove Folder from Workspace',
-                msg: messageContainer
-            });
-            if (await dialog.open()) {
-                await this.workspaceService.removeRoots(toRemove);
-            }
+        const dialog = new RemoveWorkspaceFolderDialog({
+            title: 'Remove Folder from Workspace',
+            msg: ''
+        }, toRemove);
+        if (await dialog.open()) {
+            await this.workspaceService.removeRoots(toRemove);
         }
+
     }
 
     protected areMultipleOpenHandlersPresent(openers: OpenHandler[], uri: URI): boolean {
