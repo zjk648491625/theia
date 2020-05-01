@@ -220,8 +220,21 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
         return this.resultTreeWidget.cancelIndicator;
     }
 
+    handleExpansionToggle(): void {
+        if (this.resultTreeWidget.isCollapsed()) {
+            this.expandAll();
+        } else {
+            this.collapseAll();
+        }
+    }
+
     collapseAll(): void {
         this.resultTreeWidget.collapseAll();
+        this.update();
+    }
+
+    expandAll(): void {
+        this.resultTreeWidget.expandAll();
         this.update();
     }
 

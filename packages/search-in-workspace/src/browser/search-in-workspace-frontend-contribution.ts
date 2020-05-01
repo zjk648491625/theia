@@ -49,25 +49,25 @@ export namespace SearchInWorkspaceCommands {
         id: 'search-in-workspace.refresh',
         category: SEARCH_CATEGORY,
         label: 'Refresh',
-        iconClass: 'refresh'
+        iconClass: 'codicon codicon-refresh'
     };
     export const CANCEL_SEARCH: Command = {
         id: 'search-in-workspace.cancel',
         category: SEARCH_CATEGORY,
         label: 'Cancel Search',
-        iconClass: 'cancel'
+        iconClass: 'codicon codicon-close'
     };
-    export const COLLAPSE_ALL: Command = {
-        id: 'search-in-workspace.collapse-all',
+    export const TOGGLE_COLLAPSE_EXPAND: Command = {
+        id: 'search-in-workspace.toggle-collapse-expand',
         category: SEARCH_CATEGORY,
-        label: 'Collapse All',
-        iconClass: 'theia-collapse-all-icon'
+        label: 'Toggle Collapse and Expand',
+        iconClass: 'codicon codicon-collapse-all'
     };
     export const CLEAR_ALL: Command = {
         id: 'search-in-workspace.clear-all',
         category: SEARCH_CATEGORY,
         label: 'Clear Search Results',
-        iconClass: 'clear-all'
+        iconClass: 'codicon codicon-clear-all'
     };
 }
 
@@ -149,8 +149,8 @@ export class SearchInWorkspaceFrontendContribution extends AbstractViewContribut
             isEnabled: w => this.withWidget(w, widget => (widget.hasResultList() || widget.hasSearchTerm()) && this.workspaceService.tryGetRoots().length > 0),
             isVisible: w => this.withWidget(w, () => true)
         });
-        commands.registerCommand(SearchInWorkspaceCommands.COLLAPSE_ALL, {
-            execute: w => this.withWidget(w, widget => widget.collapseAll()),
+        commands.registerCommand(SearchInWorkspaceCommands.TOGGLE_COLLAPSE_EXPAND, {
+            execute: w => this.withWidget(w, widget => widget.handleExpansionToggle()),
             isEnabled: w => this.withWidget(w, widget => widget.hasResultList()),
             isVisible: w => this.withWidget(w, () => true)
         });
@@ -234,9 +234,9 @@ export class SearchInWorkspaceFrontendContribution extends AbstractViewContribut
             onDidChange
         });
         toolbarRegistry.registerItem({
-            id: SearchInWorkspaceCommands.COLLAPSE_ALL.id,
-            command: SearchInWorkspaceCommands.COLLAPSE_ALL.id,
-            tooltip: SearchInWorkspaceCommands.COLLAPSE_ALL.label,
+            id: SearchInWorkspaceCommands.TOGGLE_COLLAPSE_EXPAND.id,
+            command: SearchInWorkspaceCommands.TOGGLE_COLLAPSE_EXPAND.id,
+            tooltip: SearchInWorkspaceCommands.TOGGLE_COLLAPSE_EXPAND.label,
             priority: 3,
             onDidChange
         });
