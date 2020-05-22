@@ -67,6 +67,9 @@
     },
     {
       "backendElectron": "lib/electron-node/token/electron-token-backend-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/commands/electron-command-module"
     }
   ],
   "keywords": [
