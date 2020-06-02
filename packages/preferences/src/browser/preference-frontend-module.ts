@@ -41,6 +41,7 @@ export function bindPreferences(bind: interfaces.Bind, unbind: interfaces.Unbind
     bind(PreferenceScopeCommandManager).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).to(PreferencesFrontendApplicationContribution).inSingletonScope();
     bind(TabBarToolbarContribution).toService(PreferencesContribution);
+    bind(FrontendApplicationContribution).toService(PreferencesContribution);
 }
 
 export default new ContainerModule((bind, unbind, isBound, rebind) => {

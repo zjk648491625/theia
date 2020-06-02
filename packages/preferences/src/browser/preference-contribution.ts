@@ -25,7 +25,8 @@ import {
     PreferenceScope,
     PreferenceProvider,
     PreferenceService,
-    PreferenceItem
+    PreferenceItem,
+    FrontendApplicationContribution
 } from '@theia/core/lib/browser';
 import { isFirefox } from '@theia/core/lib/browser';
 import { isOSX } from '@theia/core/lib/common/os';
@@ -41,7 +42,7 @@ import { Preference, PreferencesCommands, PreferenceMenus } from './util/prefere
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
 
 @injectable()
-export class PreferencesContribution extends AbstractViewContribution<PreferencesWidget> {
+export class PreferencesContribution extends AbstractViewContribution<PreferencesWidget> implements FrontendApplicationContribution {
 
     @inject(PreferencesEventService) protected readonly preferencesEventService: PreferencesEventService;
     @inject(FileSystem) protected readonly filesystem: FileSystem;
@@ -57,7 +58,8 @@ export class PreferencesContribution extends AbstractViewContribution<Preference
             widgetId: PreferencesWidget.ID,
             widgetName: PreferencesWidget.LABEL,
             defaultWidgetOptions: {
-                area: 'main',
+                area: 'left',
+                rank: 200
             },
         });
     }
@@ -69,6 +71,10 @@ export class PreferencesContribution extends AbstractViewContribution<Preference
             this.preferencesScope = e;
             widget.preferenceScope = this.preferencesScope;
         });
+    }
+
+    async initializeLayout(): Promise<void> {
+        await this.openView({ activate: false });
     }
 
     registerCommands(commands: CommandRegistry): void {
