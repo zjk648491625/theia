@@ -18,10 +18,10 @@ import { injectable } from 'inversify';
 import { WidgetOpenHandler, WidgetOpenerOptions } from '@theia/core/lib/browser';
 import URI from '@theia/core/lib/common/uri';
 import { GitCommitDetailWidgetOptions, GitCommitDetailWidget } from './git-commit-detail-widget';
-import { GitScmProvider } from '../git-scm-provider';
 
 export namespace GitCommitDetailUri {
-    export const scheme = GitScmProvider.GIT_COMMIT_DETAIL;
+    export const GIT_COMMIT_DETAIL = 'git-commit-detail-widget';
+    export const scheme = GIT_COMMIT_DETAIL;
     export function toCommitSha(uri: URI): string {
         if (uri.scheme === scheme) {
             return uri.fragment;
@@ -34,7 +34,7 @@ export type GitCommitDetailOpenerOptions = WidgetOpenerOptions & GitCommitDetail
 
 @injectable()
 export class GitCommitDetailOpenHandler extends WidgetOpenHandler<GitCommitDetailWidget> {
-    readonly id = GitScmProvider.GIT_COMMIT_DETAIL;
+    readonly id = GitCommitDetailUri.GIT_COMMIT_DETAIL;
 
     canHandle(uri: URI): number {
         try {

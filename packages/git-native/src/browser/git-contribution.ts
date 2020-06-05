@@ -19,13 +19,13 @@ import { Command, CommandContribution, CommandRegistry, DisposableCollection, Me
 import { DiffUris, Widget } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry, TabBarToolbarItem } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { EditorContextMenu, EditorManager, EditorOpenerOptions, EditorWidget } from '@theia/editor/lib/browser';
-import { Git, GitFileChange, GitFileStatus } from '../common';
+import { Git, GitFileChange, GitFileStatus } from '@theia/git/lib/common';
 import { GitRepositoryTracker } from './git-repository-tracker';
-import { GitAction, GitQuickOpenService } from './git-quick-open-service';
+import { GitAction, GitQuickOpenService } from '@theia/git/lib/browser/git-quick-open-service';
 import { GitSyncService } from './git-sync-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { GitRepositoryProvider } from './git-repository-provider';
-import { GitErrorHandler } from '../browser/git-error-handler';
+import { GitErrorHandler } from '@theia/git/lib/browser/git-error-handler';
 import { ScmWidget } from '@theia/scm/lib/browser/scm-widget';
 import { ScmTreeWidget } from '@theia/scm/lib/browser/scm-tree-widget';
 import { ScmResource, ScmCommand } from '@theia/scm/lib/browser/scm-provider';
@@ -33,6 +33,7 @@ import { ProgressService } from '@theia/core/lib/common/progress-service';
 import { GitPreferences } from './git-preferences';
 import { ColorContribution } from '@theia/core/lib/browser/color-application-contribution';
 import { ColorRegistry } from '@theia/core/lib/browser/color-registry';
+import { GitAmendSupport } from '@theia/git/lib/browser/git-amend-support';
 
 export namespace GIT_COMMANDS {
     export const CLONE = {
@@ -484,7 +485,8 @@ export class GitContribution implements CommandContribution, MenuContribution, T
             }
 
             try {
-                const lastCommit = await scmRepository.provider.amendSupport.getLastCommit();
+                const amendSupport = new GitAmendSupport(scmRepository.provider.rootUri, this.git);
+                const lastCommit = await amendSupport.getLastCommit();
                 if (lastCommit === undefined) {
                     scmRepository.input.issue = {
                         type: 'error',

@@ -19,7 +19,7 @@ import { Widget } from '@phosphor/widgets';
 import { LabelProvider } from '@theia/core/lib/browser';
 import { GitFileChange } from '../../common';
 import { GitDiffWidget } from '../diff/git-diff-widget';
-import { GitRepositoryProvider } from '../git-repository-provider';
+// import { GitRepositoryProvider } from '../git-repository-provider';
 import { ScmAvatarService } from '@theia/scm/lib/browser/scm-avatar-service';
 import * as React from 'react';
 
@@ -40,7 +40,7 @@ export class GitCommitDetailWidget extends GitDiffWidget {
     protected authorAvatar: string;
 
     constructor(
-        @inject(GitRepositoryProvider) protected readonly repositoryProvider: GitRepositoryProvider,
+        // @inject(GitRepositoryProvider) protected readonly repositoryProvider: GitRepositoryProvider,
         @inject(LabelProvider) protected readonly labelProvider: LabelProvider,
         @inject(ScmAvatarService) protected readonly avatarService: ScmAvatarService,
         @inject(GitCommitDetailWidgetOptions) protected readonly commitDetailOptions: GitCommitDetailWidgetOptions

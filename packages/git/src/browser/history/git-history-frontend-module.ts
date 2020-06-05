@@ -18,7 +18,7 @@ import { interfaces, Container } from 'inversify';
 import { WidgetFactory, OpenHandler } from '@theia/core/lib/browser';
 import { GitCommitDetailWidget, GitCommitDetailWidgetOptions } from './git-commit-detail-widget';
 import { GitCommitDetailOpenHandler } from './git-commit-detail-open-handler';
-import { GitScmProvider } from '../git-scm-provider';
+import { GitCommitDetailUri } from './git-commit-detail-open-handler';
 import { ScmHistoryCommit } from '@theia/scm-extra/lib/browser/scm-file-change-node';
 
 import '../../../src/browser/style/git-icons.css';
@@ -26,7 +26,7 @@ import '../../../src/browser/style/git-icons.css';
 export function bindGitHistoryModule(bind: interfaces.Bind): void {
 
     bind(WidgetFactory).toDynamicValue(ctx => ({
-        id: GitScmProvider.GIT_COMMIT_DETAIL,
+        id: GitCommitDetailUri.GIT_COMMIT_DETAIL,
         createWidget: (options: ScmHistoryCommit) => {
             const child = new Container({ defaultScope: 'Singleton' });
             child.parent = ctx.container;

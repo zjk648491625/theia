@@ -16,16 +16,15 @@
 
 import { inject, injectable, postConstruct } from 'inversify';
 import URI from '@theia/core/lib/common/uri';
-import { StatefulWidget, DiffUris, Message } from '@theia/core/lib/browser';
+import { StatefulWidget, DiffUris, Message, LabelProvider } from '@theia/core/lib/browser';
 import { EditorManager, EditorOpenerOptions, EditorWidget, DiffNavigatorProvider, DiffNavigator } from '@theia/editor/lib/browser';
 import { ScmRepository } from '@theia/scm/lib/browser/scm-repository';
 import { GitFileChange, GitFileStatus, Git, WorkingDirectoryStatus } from '../../common';
-import { GitScmProvider, GitScmFileChange } from '../git-scm-provider';
+import { GitScmFileChange } from '../git-scm-file-change';
 import { GitWatcher } from '../../common';
 import { GIT_RESOURCE_SCHEME } from '../git-resource';
 import { ScmNavigableListWidget, ScmItemComponent } from '@theia/scm-extra/lib/browser/scm-navigable-list-widget';
 import { Deferred } from '@theia/core/lib/common/promise-util';
-import { GitRepositoryProvider } from '../git-repository-provider';
 import * as React from 'react';
 import { MaybePromise } from '@theia/core/lib/common/types';
 import { ScmFileChangeNode } from '@theia/scm-extra/lib/browser/scm-file-change-node';
@@ -50,7 +49,7 @@ export class GitDiffWidget extends ScmNavigableListWidget<GitFileChangeNode> imp
     protected deferredListContainer = new Deferred<HTMLElement>();
 
     @inject(Git) protected readonly git: Git;
-    @inject(GitRepositoryProvider) protected readonly repositoryProvider: GitRepositoryProvider;
+    @inject(LabelProvider) protected readonly labelProvider: LabelProvider;
     @inject(DiffNavigatorProvider) protected readonly diffNavigatorProvider: DiffNavigatorProvider;
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(GitWatcher) protected readonly gitWatcher: GitWatcher;
@@ -99,14 +98,17 @@ export class GitDiffWidget extends ScmNavigableListWidget<GitFileChangeNode> imp
         this.options = options;
         const scmRepository = this.findRepositoryOrSelected(options.uri);
         if (scmRepository && scmRepository.provider.id === 'git') {
-            const provider = scmRepository.provider as GitScmProvider;
             const repository = { localUri: scmRepository.provider.rootUri };
             const gitFileChanges = await this.git.diff(repository, {
                 range: options.range,
                 uri: options.uri
             });
+            const context = {
+                rootUri: scmRepository.provider.rootUri,
+                labelProvider: this.labelProvider,
+            };
             const scmFileChanges: GitFileChangeNode[] = gitFileChanges
-                .map(change => new GitScmFileChange(change, provider, options.range))
+                .map(change => new GitScmFileChange(change, context, options.range))
                 .map(fileChange => ({ fileChange, commitId: fileChange.gitFileChange.uri }));
             this.fileChangeNodes = scmFileChanges;
             this.update();

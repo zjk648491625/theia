@@ -22,7 +22,8 @@ import { FileSystem } from '@theia/filesystem/lib/common';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 import { StorageService } from '@theia/core/lib/browser/storage-service';
 import { FileSystemWatcher } from '@theia/filesystem/lib/browser/filesystem-watcher';
-import { Git, Repository } from '../common';
+import { Git, Repository } from '@theia/git/lib/common';
+import { GitNative } from '../common/git-native';
 import { GitCommitMessageValidator } from './git-commit-message-validator';
 import { GitScmProvider } from './git-scm-provider';
 import { ScmService } from '@theia/scm/lib/browser/scm-service';
@@ -47,6 +48,7 @@ export class GitRepositoryProvider {
 
     constructor(
         @inject(Git) protected readonly git: Git,
+        @inject(GitNative) protected readonly gitNative: GitNative,
         @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
         @inject(FileSystemWatcher) protected readonly watcher: FileSystemWatcher,
         @inject(FileSystem) protected readonly fileSystem: FileSystem,
@@ -131,7 +133,7 @@ export class GitRepositoryProvider {
         const repositories: Repository[] = [];
         const refreshing: Promise<void>[] = [];
         for (const root of await this.workspaceService.roots) {
-            refreshing.push(this.git.repositories(root.uri, { ...options }).then(
+            refreshing.push(this.gitNative.repositories(root.uri, { ...options }).then(
                 result => { repositories.push(...result); },
                 () => { /* no-op*/ }
             ));
