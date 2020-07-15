@@ -25,7 +25,7 @@ import {
 import { Widget } from '@theia/core/lib/browser';
 import { CommonMenus } from '@theia/core/lib/browser/common-frontend-contribution';
 import { KeymapsService } from './keymaps-service';
-import { KeybindingRegistry, KeybindingScope } from '@theia/core/lib/browser/keybinding';
+import { KeybindingRegistry, /* KeybindingScope */ } from '@theia/core/lib/browser/keybinding';
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { KeybindingWidget, KeybindingItem } from './keybindings-widget';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
@@ -107,39 +107,35 @@ export class KeymapsFrontendContribution extends AbstractViewContribution<Keybin
             execute: w => this.withWidget(w, widget => widget.clearSearch()),
         });
         commands.registerCommand(KeymapsCommands.COPY_COMMAND, {
-            isEnabled: w => this.withWidget(w, () => true),
-            isVisible: w => this.withWidget(w, () => true),
-            execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
+            execute: ({ id, value }: { id: string, value: KeybindingItem }) => {
                 this.clipboardService.writeText(this.toStringifiedCommand(value));
-            })
+            }
         });
         commands.registerCommand(KeymapsCommands.COPY_COMMAND_ID, {
-            isEnabled: w => this.withWidget(w, () => true),
-            isVisible: w => this.withWidget(w, () => true),
-            execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, () => {
+            execute: ({ id, value }: { id: string, value: string }) => {
                 this.clipboardService.writeText(id);
-            })
+            }
         });
         commands.registerCommand(KeymapsCommands.EDIT_KEYBINDING, {
-            isEnabled: w => this.withWidget(w, () => true),
-            isVisible: w => this.withWidget(w, () => true),
-            execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
-                widget.triggerEditKeybinding(value);
-            })
+            execute: (w, { id, value }: { id: string, value: string }) => {
+                // this.withWidget(w, widget => widget.)
+            }
         });
         commands.registerCommand(KeymapsCommands.RESET_KEYBINDING, {
-            isEnabled: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, () => value.keybinding?.scope === KeybindingScope.USER),
-            isVisible: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, () => value.keybinding?.scope === KeybindingScope.USER),
-            execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
-                widget.triggerResetKeybinding(value);
-            })
+            // isEnabled: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, () => value.keybinding?.scope === KeybindingScope.USER),
+            // isVisible: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, () => value.keybinding?.scope === KeybindingScope.USER),
+            // execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
+            //     widget.resetKeybinding(value);
+            // })
+            execute: () => { }
         });
         commands.registerCommand(KeymapsCommands.CHANGE_WHEN_EXPRESSION, {
-            isEnabled: w => this.withWidget(w, () => true),
-            isVisible: w => this.withWidget(w, () => true),
-            execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
-                widget.triggerChangeWhenExpression(value);
-            })
+            // isEnabled: w => this.withWidget(w, () => true),
+            // isVisible: w => this.withWidget(w, () => true),
+            // execute: (w, { id, value }: { id: string, value: KeybindingItem }) => this.withWidget(w, widget => {
+            //     widget.changeWhenExpression(value)();
+            // })
+            execute: () => { }
         });
     }
 

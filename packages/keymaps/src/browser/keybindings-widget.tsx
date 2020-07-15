@@ -349,92 +349,15 @@ export class KeybindingWidget extends ReactWidget {
      */
     protected renderRows(): React.ReactNode {
         return <React.Fragment>
-            {this.items.map((item, index) => this.renderRow(item, index))}
-        </React.Fragment>;
-    }
-
-    protected renderRow(item: KeybindingItem, index: number): React.ReactNode {
-        const { command, keybinding } = item;
-        // TODO get rid of array functions in event handlers
-        return <tr
-            className='kb-item-row'
-            key={index}
-            onDoubleClick={this.editKeybinding(item)}
-            onContextMenu={this.handleContextMenu(item)}>
-            <td className='kb-actions'>
-                {this.renderActions(item)}
-            </td>
-            <td className='kb-label' title={this.getCommandLabel(command)}>
-                {this.renderMatchedData(item.labels.command)}
-            </td>
-            <td title={this.getKeybindingLabel(keybinding)} className='kb-keybinding monaco-keybinding'>
-                {this.renderKeybinding(item.labels.keybinding)}
-            </td>
-            <td className='kb-context' title={this.getContextLabel(keybinding)}>
-                <code>{this.renderMatchedData(item.labels.context)}</code>
-            </td>
-            <td className='kb-source' title={this.getScopeLabel(keybinding)}>
-                <code className='td-source'>{this.renderMatchedData(item.labels.source)}</code>
-            </td>
-        </tr>;
-    }
-
-    /**
-     * Render the actions container with action icons.
-     * @param item the keybinding item for the row.
-     */
-    protected renderActions(item: KeybindingItem): React.ReactNode {
-        return <span className='kb-actions-icons'>{this.renderEdit(item)}</span>;
-    }
-
-    /**
-     * Render the edit action used to update a keybinding.
-     * @param item the keybinding item for the row.
-     */
-    protected renderEdit(item: KeybindingItem): React.ReactNode {
-        return <a title='Edit Keybinding' href='#' onClick={this.editKeybinding(item)}><i className='codicon codicon-edit kb-action-item'></i></a>;
-    }
-
-    /**
-     * Render the keybinding.
-     * @param keybinding the keybinding value.
-     */
-    protected renderKeybinding(keybinding: string): React.ReactNode {
-        if (!keybinding.length) {
-            return undefined;
-        }
-        const regex = new RegExp(this.keybindingSeparator);
-        keybinding = keybinding.replace(regex, '+');
-        const keys = keybinding.split('+');
-
-        return <React.Fragment>
-            {
-                keys.map((key, index) => {
-                    if (index === 0) {
-                        return <span key={index} className='monaco-keybinding-key'>
-                            {this.renderMatchedData(key)}
-                        </span>;
-                    } else if (key.includes(' ')) {
-                        // Handle key chords, which have space as the separator
-                        // Example: `k Ctrl` in key chords `Ctrl+k Ctrl+p`
-                        let chordKeys = key.split('<match> </match>');
-                        if (chordKeys.length === 1) {
-                            chordKeys = key.split(' ');
-                        }
-                        return <React.Fragment key={index}>
-                            <span className='monaco-keybinding-separator'>+</span>
-                            <span className='monaco-keybinding-key'>{this.renderKeybinding(chordKeys[0])}</span>
-                            <span className='monaco-keybinding-separator'>&nbsp;&nbsp;</span>
-                            <span className='monaco-keybinding-key'>{this.renderKeybinding(chordKeys[1])}</span>
-                        </React.Fragment>;
-                    } else {
-                        return <React.Fragment key={index}>
-                            <span className='monaco-keybinding-separator'>+</span>
-                            <span className='monaco-keybinding-key'>{this.renderKeybinding(key)}</span>
-                        </React.Fragment>;
-                    }
-                })
-            }
+            {this.items.map((item, index) =>
+                <KeybindingRow
+                    index={index}
+                    item={item}
+                    query={this.query}
+                    service={this.keymapsService}
+                    registry={this.keybindingRegistry}
+                    contextMenuRenderer={this.contextMenuRenderer}
+                />)}
         </React.Fragment>;
     }
 
@@ -460,10 +383,10 @@ export class KeybindingWidget extends ReactWidget {
                 keybinding,
                 labels: {
                     id: command.id,
-                    command: this.getCommandLabel(command),
-                    keybinding: this.getKeybindingLabel(keybinding) || '',
-                    context: this.getContextLabel(keybinding) || '',
-                    source: this.getScopeLabel(keybinding) || ''
+                    command: KeybindingWidgetService.getCommandLabel(command),
+                    keybinding: KeybindingWidgetService.getKeybindingLabel(keybinding) || '',
+                    context: KeybindingWidgetService.getContextLabel(keybinding) || '',
+                    source: KeybindingWidgetService.getScopeLabel(keybinding) || ''
                 }
             });
         }
@@ -479,39 +402,6 @@ export class KeybindingWidget extends ReactWidget {
     }
 
     /**
-     * Get the human-readable label for a given command.
-     * @param command the command.
-     *
-     * @returns a human-readable label for the given command.
-     */
-    protected getCommandLabel(command: Command): string {
-        if (command.label) {
-            // Prefix the command label with the category if it exists, else return the simple label.
-            return command.category ? `${command.category}: ${command.label}` : command.label;
-        }
-        return command.id;
-    }
-
-    protected getKeybindingLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
-        return keybinding && keybinding.keybinding;
-    }
-
-    protected getContextLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
-        return keybinding ? keybinding.context || keybinding.when : undefined;
-    }
-
-    protected getScopeLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
-        let scope = keybinding && keybinding.scope;
-        if (scope !== undefined) {
-            if (scope < KeybindingScope.USER) {
-                scope = KeybindingScope.DEFAULT;
-            }
-            return KeybindingScope[scope].toLocaleLowerCase();
-        }
-        return undefined;
-    }
-
-    /**
      * Compare two commands.
      * - Commands with a label should be prioritized and alphabetically sorted.
      * - Commands without a label (id) should be placed at the bottom.
@@ -524,8 +414,8 @@ export class KeybindingWidget extends ReactWidget {
      * - returns `0` if they are equivalent.
      */
     protected compareItem(a: Command, b: Command): number {
-        const labelA = this.getCommandLabel(a);
-        const labelB = this.getCommandLabel(b);
+        const labelA = KeybindingWidgetService.getCommandLabel(a);
+        const labelB = KeybindingWidgetService.getCommandLabel(b);
         if (labelA === a.id && labelB === b.id) {
             return labelA.toLowerCase().localeCompare(labelB.toLowerCase());
         }
@@ -538,112 +428,53 @@ export class KeybindingWidget extends ReactWidget {
         return labelA.toLowerCase().localeCompare(labelB.toLowerCase());
     }
 
-    public triggerEditKeybinding(item: KeybindingItem): void {
-        this.editKeybinding(item)();
-    };
+}
 
-    public triggerResetKeybinding(item: KeybindingItem): void {
-        this.resetKeybinding(item);
-    }
-
-    public triggerChangeWhenExpression(item: KeybindingItem): void {
-        this.changeWhenExpression(item)();
-    }
+export namespace KeybindingWidgetService {
 
     /**
-     * Prompt users to update the keybinding for the given command.
-     * @param item the keybinding item.
-     */
-    protected editKeybinding = (item: KeybindingItem) => () => {
-        const command = item.command.id;
-        const oldKeybinding = item.keybinding && item.keybinding.keybinding;
-        const dialog = new EditKeybindingDialog({
-            title: 'Edit Keybinding',
-            initialValue: oldKeybinding,
-            validate: newKeybinding => this.validateKeybinding(command, oldKeybinding, newKeybinding),
-        }, this.keymapsService, item);
-        dialog.open().then(async keybinding => {
-            if (keybinding) {
-                await this.keymapsService.setKeybinding({
-                    ...item.keybinding,
-                    command,
-                    keybinding
-                }, oldKeybinding);
-            }
-        });
-    };
-
-    /**
-     * Prompt users to update the `when` expression for the given command.
-     * @param item the keybinding item.
-     */
-    protected changeWhenExpression = (item: KeybindingItem) => () => {
-        const command = item.command.id;
-        const keybinding = item.keybinding?.keybinding || '';
-        const dialog = new EditWhenContextDialog({
-            title: 'Change When Expression',
-            initialValue: item.labels.context
-        }, this.keymapsService, item);
-        dialog.open().then(async when => {
-            console.log(`when: ${when}`);
-            if (when) {
-                await this.keymapsService.setKeybinding(
-                    { ...item.keybinding, command, keybinding, when },
-                    { ...item.keybinding, command, keybinding, when: item.keybinding?.when }
-                );
-            }
-        });
-    };
-
-    /**
-     * Prompt users for confirmation before resetting.
-     * @param command the command label.
+     * Get the human-readable label for a given command.
+     * @param command the command.
      *
-     * @returns a Promise which resolves to `true` if a user accepts resetting.
+     * @returns a human-readable label for the given command.
      */
-    protected async confirmResetKeybinding(item: KeybindingItem): Promise<boolean> {
-        const dialog = new ConfirmDialog({
-            title: `Reset keybinding for '${this.getCommandLabel(item.command)}'`,
-            msg: 'Do you really want to reset this keybinding to its default value?'
-        });
-        return !!await dialog.open();
+    export function getCommandLabel(command: Command): string {
+        if (command.label) {
+            // Prefix the command label with the category if it exists, else return the simple label.
+            return command.category ? `${command.category}: ${command.label}` : command.label;
+        }
+        return command.id;
     }
 
-    /**
-     * Reset the keybinding to its default value.
-     * @param item the keybinding item.
-     */
-    protected async resetKeybinding(item: KeybindingItem): Promise<void> {
-        const confirmed = await this.confirmResetKeybinding(item);
-        if (confirmed) {
-            this.keymapsService.removeKeybinding(item.command.id);
-        }
+    export function getKeybindingLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
+        return keybinding && keybinding.keybinding;
     }
 
-    /**
-     * Validate the provided keybinding value against its previous value.
-     * @param command the command label.
-     * @param oldKeybinding the old keybinding value.
-     * @param keybinding the new keybinding value.
-     *
-     * @returns the end user message to display.
-     */
-    protected validateKeybinding(command: string, oldKeybinding: string | undefined, keybinding: string): string {
-        if (!keybinding) {
-            return 'keybinding value is required';
+    export function getContextLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
+        return keybinding ? keybinding.context || keybinding.when : undefined;
+    }
+
+    export function getScopeLabel(keybinding: ScopedKeybinding | undefined): string | undefined {
+        let scope = keybinding && keybinding.scope;
+        if (scope !== undefined) {
+            if (scope < KeybindingScope.USER) {
+                scope = KeybindingScope.DEFAULT;
+            }
+            return KeybindingScope[scope].toLocaleLowerCase();
         }
-        try {
-            const binding = { command, keybinding };
-            KeySequence.parse(keybinding);
-            if (oldKeybinding === keybinding) {
-                return ' '; // if old and new keybindings match, quietly reject update
-            }
-            if (this.keybindingRegistry.containsKeybindingInScope(binding)) {
-                return 'keybinding currently collides';
-            }
-            return '';
-        } catch (error) {
-            return error;
+        return undefined;
+    }
+
+    export function renderMatchedData(property: string, query: string): React.ReactNode {
+        if (query !== '') {
+            const cellData = KeybindingWidgetService.buildCellData(property, query);
+            return <React.Fragment>
+                {
+                    cellData.map((data, index) => (data.highlighted) ? <span key={index} className='fuzzy-match'>{data.value}</span> : <span key={index}>{data.value}</span>)
+                }
+            </React.Fragment>;
+        } else {
+            return property;
         }
     }
 
@@ -653,10 +484,10 @@ export class KeybindingWidget extends ReactWidget {
      *
      * @returns the list of cell data.
      */
-    protected buildCellData(raw: string): CellData[] {
+    export function buildCellData(raw: string, query: string): CellData[] {
         const data: CellData[] = [];
 
-        if (this.query === '') {
+        if (query === '') {
             return data;
         }
 
@@ -664,7 +495,7 @@ export class KeybindingWidget extends ReactWidget {
         let leading;
         let result;
 
-        const regexp = new RegExp(this.regexp);
+        const regexp = new RegExp(/<match>(.*?)<\/match>/g);
 
         while (result = regexp.exec(raw)) {
             const splitLeftIndex = following.indexOf(result[0]);
@@ -686,30 +517,208 @@ export class KeybindingWidget extends ReactWidget {
         return data;
     }
 
+}
+
+export interface KeybindingRowProps {
+    item: KeybindingItem;
+    index: number;
+    query: string;
+    service: KeymapsService;
+    registry: KeybindingRegistry;
+    contextMenuRenderer: ContextMenuRenderer;
+}
+
+export class KeybindingRow extends React.Component<KeybindingRowProps> {
+
+    render(): React.ReactNode {
+        return <tr className='kb-item-row'
+            key={this.props.index}
+            onDoubleClick={this.editKeybinding}
+            onContextMenu={this.handleContextMenuEvent}>
+            <td className='kb-actions'>
+                {this.renderActions()}
+            </td>
+            <td className='kb-label' title={KeybindingWidgetService.getCommandLabel(this.props.item.command)}>
+                {KeybindingWidgetService.renderMatchedData(this.props.item.labels.command, this.props.query)}
+            </td>
+            <td title={KeybindingWidgetService.getKeybindingLabel(this.props.item.keybinding)} className='kb-keybinding monaco-keybinding'>
+                {this.renderKeybinding(this.props.item.labels.keybinding)}
+            </td>
+            <td className='kb-context' title={KeybindingWidgetService.getContextLabel(this.props.item.keybinding)}>
+                <code>{KeybindingWidgetService.renderMatchedData(this.props.item.labels.context, this.props.query)}</code>
+            </td>
+            <td className='kb-source' title={KeybindingWidgetService.getScopeLabel(this.props.item.keybinding)}>
+                <code className='td-source'>{KeybindingWidgetService.renderMatchedData(this.props.item.labels.source, this.props.query)}</code>
+            </td>
+        </tr>;
+    }
+
     /**
-     * Render the fuzzy representation of a matched result.
-     * @param property one of the `KeybindingItem` properties.
+     * Render the actions container with action icons.
+     * @param item the keybinding item for the row.
      */
-    protected renderMatchedData(property: string): React.ReactNode {
-        if (this.query !== '') {
-            const cellData = this.buildCellData(property);
-            return <React.Fragment>
-                {
-                    cellData.map((data, index) => (data.highlighted) ? <span key={index} className='fuzzy-match'>{data.value}</span> : <span key={index}>{data.value}</span>)
-                }
-            </React.Fragment>;
-        } else {
-            return property;
+    protected readonly renderActions = () => this.doRenderActions(this.props.item);
+    protected doRenderActions(item: KeybindingItem): React.ReactNode {
+        return <span className='kb-actions-icons'>{this.renderEdit(item)}</span>;
+    }
+
+    /**
+     * Render the edit action used to update a keybinding.
+     * @param item the keybinding item for the row.
+     */
+    protected renderEdit(item: KeybindingItem): React.ReactNode {
+        return <a title='Edit Keybinding' href='#' onClick={this.editKeybinding}><i className='codicon codicon-edit kb-action-item'></i></a>;
+    }
+
+    /**
+     * Prompt users to update the keybinding for the given command.
+     * @param item the keybinding item.
+     */
+    editKeybinding = () => {
+        const command = this.props.item.command.id;
+        const oldKeybinding = this.props.item.keybinding && this.props.item.keybinding.keybinding;
+        const dialog = new EditKeybindingDialog({
+            title: 'Edit Keybinding',
+            initialValue: oldKeybinding,
+            validate: newKeybinding => this.validateKeybinding(command, oldKeybinding, newKeybinding),
+        }, this.props.service, this.props.item);
+        dialog.open().then(async keybinding => {
+            if (keybinding) {
+                await this.props.service.setKeybinding({
+                    ...this.props.item.keybinding,
+                    command,
+                    keybinding
+                }, oldKeybinding);
+            }
+        });
+    };
+
+    /**
+     * Prompt users to update the `when` expression for the given command.
+     * @param item the keybinding item.
+     */
+    changeWhenExpression = () => {
+        const command = this.props.item.command.id;
+        const keybinding = this.props.item.keybinding?.keybinding || '';
+        const dialog = new EditWhenContextDialog({
+            title: 'Change When Expression',
+            initialValue: this.props.item.labels.context
+        }, this.props.service, this.props.item);
+        dialog.open().then(async when => {
+            if (when) {
+                await this.props.service.setKeybinding(
+                    { ...this.props.item.keybinding, command, keybinding, when },
+                    { ...this.props.item.keybinding, command, keybinding, when: this.props.item.keybinding?.when }
+                );
+            }
+        });
+    };
+
+    /**
+     * Prompt users for confirmation before resetting.
+     * @param command the command label.
+     *
+     * @returns a Promise which resolves to `true` if a user accepts resetting.
+     */
+    protected async confirmResetKeybinding(item: KeybindingItem): Promise<boolean> {
+        const dialog = new ConfirmDialog({
+            title: `Reset keybinding for '${KeybindingWidgetService.getCommandLabel(item.command)}'`,
+            msg: 'Do you really want to reset this keybinding to its default value?'
+        });
+        return !!await dialog.open();
+    }
+
+    /**
+     * Reset the keybinding to its default value.
+     * @param item the keybinding item.
+     */
+    async resetKeybinding(item: KeybindingItem): Promise<void> {
+        const confirmed = await this.confirmResetKeybinding(item);
+        if (confirmed) {
+            this.props.service.removeKeybinding(item.command.id);
         }
     }
 
-    protected handleContextMenu = (item: KeybindingItem) => (e: React.SyntheticEvent) => {
-        const target = e.nativeEvent.target as HTMLElement;
-        const domRect = target.getBoundingClientRect();
-        this.contextMenuRenderer.render({
+    /**
+     * Validate the provided keybinding value against its previous value.
+     * @param command the command label.
+     * @param oldKeybinding the old keybinding value.
+     * @param keybinding the new keybinding value.
+     *
+     * @returns the end user message to display.
+     */
+    protected validateKeybinding(command: string, oldKeybinding: string | undefined, keybinding: string): string {
+        if (!keybinding) {
+            return 'keybinding value is required';
+        }
+        try {
+            const binding = { command, keybinding };
+            KeySequence.parse(keybinding);
+            if (oldKeybinding === keybinding) {
+                return ' '; // if old and new keybindings match, quietly reject update
+            }
+            if (this.props.registry.containsKeybindingInScope(binding)) {
+                return 'keybinding currently collides';
+            }
+            return '';
+        } catch (error) {
+            return error;
+        }
+    }
+
+    /**
+     * Render the keybinding.
+     * @param keybinding the keybinding value.
+     */
+    protected renderKeybinding(keybinding: string): React.ReactNode {
+        if (!keybinding.length) {
+            return undefined;
+        }
+        const regex = new RegExp(/<match>\+<\/match>/g);
+        keybinding = keybinding.replace(regex, '+');
+        const keys = keybinding.split('+');
+
+        return <React.Fragment>
+            {
+                keys.map((key, index) => {
+                    if (index === 0) {
+                        return <span key={index} className='monaco-keybinding-key'>
+                            {KeybindingWidgetService.renderMatchedData(key, this.props.query)}
+                        </span>;
+                    } else if (key.includes(' ')) {
+                        // Handle key chords, which have space as the separator
+                        // Example: `k Ctrl` in key chords `Ctrl+k Ctrl+p`
+                        let chordKeys = key.split('<match> </match>');
+                        if (chordKeys.length === 1) {
+                            chordKeys = key.split(' ');
+                        }
+                        return <React.Fragment key={index}>
+                            <span className='monaco-keybinding-separator'>+</span>
+                            <span className='monaco-keybinding-key'>{this.renderKeybinding(chordKeys[0])}</span>
+                            <span className='monaco-keybinding-separator'>&nbsp;&nbsp;</span>
+                            <span className='monaco-keybinding-key'>{this.renderKeybinding(chordKeys[1])}</span>
+                        </React.Fragment>;
+                    } else {
+                        return <React.Fragment key={index}>
+                            <span className='monaco-keybinding-separator'>+</span>
+                            <span className='monaco-keybinding-key'>{this.renderKeybinding(key)}</span>
+                        </React.Fragment>;
+                    }
+                })
+            }
+        </React.Fragment>;
+    }
+
+    protected handleContextMenuEvent = (e: React.MouseEvent<HTMLElement>) => {
+        this.props.contextMenuRenderer.render({
             menuPath: KeymapsMenus.KEYBINDINGS_WIDGET_CONTEXT_MENU,
-            anchor: { x: domRect.left, y: domRect.bottom },
-            args: [this, { id: item.command.id, value: item }]
+            anchor: e.nativeEvent,
+            args: [{
+                id: this.props.item.command.id,
+                value: this.props.item
+            }]
         });
+        e.preventDefault();
     };
+
 }
