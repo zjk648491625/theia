@@ -17,7 +17,9 @@
 import '../../src/browser/style/index.css';
 
 import { ContainerModule } from 'inversify';
-import { WidgetFactory, bindViewContribution, FrontendApplicationContribution, ViewContainerIdentifier, OpenHandler, WidgetManager } from '@theia/core/lib/browser';
+import {
+    WidgetFactory, bindViewContribution, FrontendApplicationContribution, ViewContainerIdentifier,
+    OpenHandler, WidgetManager} from '@theia/core/lib/browser';
 import { VSXExtensionsViewContainer } from './vsx-extensions-view-container';
 import { VSXExtensionsContribution } from './vsx-extensions-contribution';
 import { VSXExtensionsSearchBar } from './vsx-extensions-search-bar';
@@ -90,4 +92,5 @@ export default new ContainerModule(bind => {
     bind(FrontendApplicationContribution).toService(VSXExtensionsContribution);
     bind(ColorContribution).toService(VSXExtensionsContribution);
     bind(TabBarToolbarContribution).toService(VSXExtensionsContribution);
+
 });

@@ -38,4 +38,13 @@ export class VSXEnvironment {
         return registryUri.resolve('api');
     }
 
+    protected _apiVersion: string | undefined;
+    async getVscodeApiVersion(): Promise<string> {
+        if (!this._apiVersion) {
+            const apiVersion = await this.environments.getValue('VSCODE_API_VERSION');
+            this._apiVersion = apiVersion?.value || '';
+        }
+        return this._apiVersion;
+    }
+
 }
