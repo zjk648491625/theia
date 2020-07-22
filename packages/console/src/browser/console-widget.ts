@@ -26,6 +26,7 @@ import { ProtocolToMonacoConverter, MonacoToProtocolConverter } from 'monaco-lan
 import { ConsoleHistory } from './console-history';
 import { ConsoleContentWidget } from './console-content-widget';
 import { ConsoleSession } from './console-session';
+import { Emitter } from '@theia/core/lib/common/event';
 
 export const ConsoleOptions = Symbol('ConsoleWidgetOptions');
 export interface ConsoleOptions {
@@ -79,6 +80,9 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
 
     protected _input: MonacoEditor;
 
+    protected readonly onDidCreateInputEmitter = new Emitter<void>();
+    readonly onDidCreateInput = this.onDidCreateInputEmitter.event;
+
     constructor() {
         super();
         this.node.classList.add(ConsoleWidget.styles.node);
@@ -107,6 +111,7 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
         layout.addWidget(inputWidget);
 
         const input = this._input = await this.createInput(inputWidget.node);
+        this.onDidCreateInputEmitter.fire();
         this.toDispose.push(input);
         this.toDispose.push(input.getControl().onDidLayoutChange(() => this.resizeContent()));
 
@@ -121,7 +126,7 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
         }
     }
 
-    protected createInput(node: HTMLElement): Promise<MonacoEditor> {
+    protected async createInput(node: HTMLElement): Promise<MonacoEditor> {
         return this.editorProvider.createInline(this.options.input.uri, node, this.options.input.options);
     }
 
@@ -248,15 +253,18 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
     }
 
     restoreState(oldState: object): void {
-        if ('history' in oldState) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.history.restore((<any>oldState)['history']);
-        }
-        this.input.getControl().setValue(this.history.current || '');
-        if ('input' in oldState) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.input.restoreViewState((<any>oldState)['input']);
-        }
+        this.onDidCreateInput(() => {
+            console.log('restore: input created...');
+            if ('history' in oldState) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this.history.restore((<any>oldState)['history']);
+            }
+            this._input.getControl().setValue(this.history.current || '');
+            if ('input' in oldState) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this.input.restoreViewState((<any>oldState)['input']);
+            }
+        });
     }
 
     hasInputFocus(): boolean {
