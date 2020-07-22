@@ -79,6 +79,7 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
     protected readonly editorProvider: MonacoEditorProvider;
 
     protected _input: MonacoEditor;
+    protected _inputPromise: Promise<MonacoEditor>;
 
     protected readonly onDidCreateInputEmitter = new Emitter<void>();
     readonly onDidCreateInput = this.onDidCreateInputEmitter.event;
@@ -110,19 +111,19 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
         inputWidget.node.classList.add(ConsoleWidget.styles.input);
         layout.addWidget(inputWidget);
 
-        const input = this._input = await this.createInput(inputWidget.node);
-        this.onDidCreateInputEmitter.fire();
-        this.toDispose.push(input);
-        this.toDispose.push(input.getControl().onDidLayoutChange(() => this.resizeContent()));
+        this._inputPromise = this.createInput(inputWidget.node);
+        this._input = await this._inputPromise;
+        this.toDispose.push(this._input);
+        this.toDispose.push(this._input.getControl().onDidLayoutChange(() => this.resizeContent()));
 
         // todo update font if fontInfo was changed only
         // it's impossible at the moment, but will be fixed for next upgrade of monaco version
         // see https://github.com/microsoft/vscode/commit/5084e8ca1935698c98c163e339ca664818786c6d
-        this.toDispose.push(input.getControl().onDidChangeConfiguration(() => this.updateFont()));
+        this.toDispose.push(this._input.getControl().onDidChangeConfiguration(() => this.updateFont()));
 
         this.updateFont();
         if (inputFocusContextKey) {
-            this.toDispose.push(input.onFocusChanged(() => inputFocusContextKey.set(this.hasInputFocus())));
+            this.toDispose.push(this._input.onFocusChanged(() => inputFocusContextKey.set(this.hasInputFocus())));
         }
     }
 
@@ -253,7 +254,7 @@ export class ConsoleWidget extends BaseWidget implements StatefulWidget {
     }
 
     restoreState(oldState: object): void {
-        this.onDidCreateInput(() => {
+        this._inputPromise.then(() => {
             console.log('restore: input created...');
             if ('history' in oldState) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
