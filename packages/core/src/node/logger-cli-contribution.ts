@@ -19,7 +19,7 @@ import { injectable } from 'inversify';
 import { LogLevel } from '../common/logger';
 import { CliContribution } from './cli';
 import * as fs from 'fs-extra';
-import * as nsfw from 'nsfw';
+import * as nsfw from '@theia/nsfw';
 import { Event, Emitter } from '../common/event';
 import * as path from 'path';
 
@@ -90,7 +90,7 @@ export class LogLevelCliContribution implements CliContribution {
     }
 
     protected watchLogConfigFile(filename: string): Promise<void> {
-        return nsfw(filename, async (events: nsfw.ChangeEvent[]) => {
+        return nsfw(filename, async (events: nsfw.FileChangeEvent[]) => {
             try {
                 for (const event of events) {
                     switch (event.action) {

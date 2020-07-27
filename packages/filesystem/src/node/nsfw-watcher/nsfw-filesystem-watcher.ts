@@ -15,7 +15,7 @@
  ********************************************************************************/
 
 import * as fs from 'fs';
-import * as nsfw from 'nsfw';
+import * as nsfw from '@theia/nsfw';
 import * as paths from 'path';
 import { IMinimatch, Minimatch } from 'minimatch';
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
@@ -55,12 +55,12 @@ export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
         verbose: boolean
         info: (message: string, ...args: any[]) => void
         error: (message: string, ...args: any[]) => void,
-        nsfwOptions: nsfw.Options
+        nsfwOptions: Partial<nsfw.Options>
     };
 
     constructor(options?: {
         verbose?: boolean,
-        nsfwOptions?: nsfw.Options,
+        nsfwOptions?: Partial<nsfw.Options>,
         info?: (message: string, ...args: any[]) => void
         error?: (message: string, ...args: any[]) => void
     }) {
@@ -110,8 +110,10 @@ export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
         if (options.ignored.length > 0) {
             this.debug('Files ignored for watching', options.ignored);
         }
-
-        let watcher: nsfw.NSFW | undefined = await nsfw(fs.realpathSync(basePath), (events: nsfw.ChangeEvent[]) => {
+        // convert the glob patterns into Minimatch instances:
+        const ignoredMinimatch: IMinimatch[] = options.ignored.map(pattern => new Minimatch(pattern, { dot: true }));
+        // create the nsfw watcher:
+        let watcher: nsfw.NSFW | undefined = await nsfw(fs.realpathSync(basePath), (events: nsfw.FileChangeEvent[]) => {
             for (const event of events) {
                 if (event.action === nsfw.actions.CREATED) {
                     this.pushAdded(watcherId, this.resolvePath(event.directory, event.file!));
@@ -133,6 +135,9 @@ export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
                 console.warn(`Failed to watch "${basePath}":`, error);
                 this.unwatchFileChanges(watcherId);
             },
+            // convert the minimatch objects to string regex patterns for @theia/nsfw to use:
+            ignorePathRegexArray: ignoredMinimatch.map(ignored => ignored.makeRe().source),
+            // merge the rest of the options defined using inversify:
             ...this.options.nsfwOptions
         });
         await watcher.start();
@@ -156,7 +161,7 @@ export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
             }
         }));
         this.watcherOptions.set(watcherId, {
-            ignored: options.ignored.map(pattern => new Minimatch(pattern, { dot: true }))
+            ignored: ignoredMinimatch,
         });
     }
 

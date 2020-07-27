@@ -210,33 +210,30 @@ export class FileSystemWatcher implements Disposable {
      * Resolve when watching is started.
      * Return a disposable to stop file watching under the given uri.
      */
-    watchFileChanges(uri: URI): Promise<Disposable> {
-        return this.createWatchOptions(uri.toString())
-            .then(options =>
-                this.server.watchFileChanges(uri.toString(), options)
-            )
-            .then(watcher => {
-                const toDispose = new DisposableCollection();
-                const toStop = Disposable.create(() =>
-                    this.server.unwatchFileChanges(watcher)
-                );
-                const toRestart = toDispose.push(toStop);
-                this.toRestartAll.push(Disposable.create(() => {
-                    toRestart.dispose();
-                    toStop.dispose();
-                    this.watchFileChanges(uri).then(disposable =>
-                        toDispose.push(disposable)
-                    );
-                }));
-                return toDispose;
-            });
+    async watchFileChanges(uri: URI): Promise<Disposable> {
+        const options = await this.createWatchOptions(uri.toString());
+        const watcher = await this.server.watchFileChanges(uri.toString(), options);
+        const toDispose = new DisposableCollection();
+        const toStop = Disposable.create(() =>
+            this.server.unwatchFileChanges(watcher)
+        );
+        const toRestart = toDispose.push(toStop);
+        this.toRestartAll.push(Disposable.create(() => {
+            toRestart.dispose();
+            toStop.dispose();
+            this.watchFileChanges(uri).then(disposable =>
+                toDispose.push(disposable)
+            );
+        }));
+        return toDispose;
     }
 
-    protected createWatchOptions(uri: string): Promise<WatchOptions> {
-        return this.getIgnored(uri).then(ignored => ({
+    protected async createWatchOptions(uri: string): Promise<WatchOptions> {
+        const ignored = await this.getIgnored(uri);
+        return {
             // always ignore temporary upload files
             ignored: ignored.concat('**/theia_upload_*')
-        }));
+        };
     }
 
     protected async getIgnored(uri: string): Promise<string[]> {

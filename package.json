@@ -8,7 +8,8 @@
   },
   "resolutions": {
     "**/@types/node": "~10.3.6",
-    "**/node-abi": "^2.18.0"
+    "**/node-abi": "^2.18.0",
+    "@theia/nsfw": "link:../nsfw"
   },
   "devDependencies": {
     "@types/chai-string": "^1.4.0",
