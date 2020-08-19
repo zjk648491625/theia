@@ -53,6 +53,10 @@ export interface SearchInWorkspaceOptions {
      * Glob pattern for matching files and directories to exclude the search.
      */
     exclude?: string[];
+    /**
+     * Glob pattern to match file and directories. Inherits values from 'files.exclude'.
+     */
+    ignoredFiles?: string[]
 }
 
 export interface SearchInWorkspaceResult {

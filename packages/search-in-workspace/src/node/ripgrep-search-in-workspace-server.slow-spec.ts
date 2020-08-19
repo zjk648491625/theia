@@ -770,6 +770,18 @@ describe('ripgrep-search-in-workspace-server', function (): void {
         ripgrepServer.search(pattern, [rootDirAUri, rootDirBUri]);
     });
 
+    it('test ignored files', done => {
+        const pattern = 'sweet potatoes';
+
+        const client = new ResultAccumulator(() => {
+            const expected: SearchInWorkspaceExpectation[] = [];
+            compareSearchResults(expected, client.results);
+            done();
+        });
+        ripgrepServer.setClient(client);
+        ripgrepServer.search(pattern, [rootDirAUri, rootDirBUri], { ignoredFiles: ['potatoes'] });
+    });
+
     it('should only find patterns from the folder closest to the file', done => {
         const pattern = 'folder';
 

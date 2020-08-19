@@ -104,6 +104,13 @@ export class RipgrepSearchInWorkspaceServer implements SearchInWorkspaceServer {
         } else {
             args.push('--max-filesize=20M');
         }
+        if (options && options.ignoredFiles && !options.includeIgnored) {
+            for (const glob of options.ignoredFiles) {
+                if (glob !== '') {
+                    args.push('--glob=!**/' + glob);
+                }
+            }
+        }
         if (options && options.include) {
             for (const include of options.include) {
                 if (include !== '') {

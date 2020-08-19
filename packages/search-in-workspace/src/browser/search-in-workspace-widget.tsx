@@ -25,6 +25,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { SearchInWorkspaceContextKeyService } from './search-in-workspace-context-key-service';
 import { CancellationTokenSource } from '@theia/core';
 import { ProgressBarFactory } from '@theia/core/lib/browser/progress-bar-factory';
+import { FileSystemPreferences } from '@theia/filesystem/lib/browser';
 
 export interface SearchFieldState {
     className: string;
@@ -85,6 +86,9 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
 
     @inject(ProgressBarFactory)
     protected readonly progressBarFactory: ProgressBarFactory;
+
+    @inject(FileSystemPreferences)
+    protected readonly fileSystemPreferences: FileSystemPreferences;
 
     @postConstruct()
     protected init(): void {
@@ -368,9 +372,18 @@ export class SearchInWorkspaceWidget extends BaseWidget implements StatefulWidge
                 return;
             } else {
                 this.searchTerm = searchValue;
-                this.resultTreeWidget.search(this.searchTerm, (this.searchInWorkspaceOptions || {}));
+                const options: SearchInWorkspaceOptions = {
+                    ...this.searchInWorkspaceOptions,
+                    ignoredFiles: this.getIgnoredFiles()
+                };
+                this.resultTreeWidget.search(this.searchTerm, (options || {}));
             }
         }
+    }
+
+    protected getIgnoredFiles(): string[] {
+        const ignoredFiles = this.fileSystemPreferences['files.exclude'];
+        return Object.keys(ignoredFiles).filter(key => !!ignoredFiles[key]);
     }
 
     protected renderSearchField(): React.ReactNode {
