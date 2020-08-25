@@ -15,13 +15,15 @@
  ********************************************************************************/
 
 import { GettingStartedContribution } from './getting-started-contribution';
-import { ContainerModule, interfaces } from 'inversify';
+import { ContainerModule } from 'inversify';
 import { GettingStartedWidget } from './getting-started-widget';
 import { WidgetFactory, FrontendApplicationContribution, bindViewContribution } from '@theia/core/lib/browser';
 
 import '../../src/browser/style/index.css';
+import { CustomLabelProviderContribution } from './custom-label-provider-contribution';
+import { FileTreeLabelProvider } from '@theia/filesystem/lib/browser/file-tree/file-tree-label-provider';
 
-export default new ContainerModule((bind: interfaces.Bind) => {
+export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bindViewContribution(bind, GettingStartedContribution);
     bind(FrontendApplicationContribution).toService(GettingStartedContribution);
     bind(GettingStartedWidget).toSelf();
@@ -29,4 +31,7 @@ export default new ContainerModule((bind: interfaces.Bind) => {
         id: GettingStartedWidget.ID,
         createWidget: () => context.container.get<GettingStartedWidget>(GettingStartedWidget),
     })).inSingletonScope();
+
+    bind(CustomLabelProviderContribution).toSelf().inSingletonScope();
+    rebind(FileTreeLabelProvider).toService(CustomLabelProviderContribution); // rebind the tree provider to the custom one.
 });
