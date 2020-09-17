@@ -121,7 +121,8 @@ import {
     CallHierarchyItem,
     CallHierarchyIncomingCall,
     CallHierarchyOutgoingCall,
-    TimelineItem
+    TimelineItem,
+    EnvironmentVariableMutatorType
 } from './types-impl';
 import { AuthenticationExtImpl } from './authentication-ext';
 import { SymbolKind } from '../common/plugin-api-rpc-model';
@@ -911,7 +912,8 @@ export function createAPIFactory(
             CallHierarchyItem,
             CallHierarchyIncomingCall,
             CallHierarchyOutgoingCall,
-            TimelineItem
+            TimelineItem,
+            EnvironmentVariableMutatorType
         };
     };
 }
