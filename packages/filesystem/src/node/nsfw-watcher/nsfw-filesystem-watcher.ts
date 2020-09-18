@@ -14,56 +14,392 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import * as fs from 'fs';
 import * as nsfw from 'nsfw';
-import * as paths from 'path';
+import { join } from 'path';
+import { promises as fsp } from 'fs';
 import { IMinimatch, Minimatch } from 'minimatch';
-import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
 import { FileUri } from '@theia/core/lib/node/file-uri';
 import {
-    FileChangeType,
-    FileSystemWatcherClient,
-    FileSystemWatcherServer,
-    WatchOptions
+    FileChangeType, FileSystemWatcherServer2, FileSystemWatcherClient2, WatchOptions
 } from '../../common/filesystem-watcher-protocol';
 import { FileChangeCollection } from '../file-change-collection';
-import { setInterval, clearInterval } from 'timers';
+import { Deferred, AsyncLock } from '@theia/core/lib/common/promise-util';
 
-const debounce = require('lodash.debounce');
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
+/** NsfwWatcherOptions */
 export interface WatcherOptions {
     ignored: IMinimatch[]
 }
+type NsfwWatcherOptions = WatcherOptions;
 
-export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
+export interface NsfwFileSystemWatcherServerOptions {
+    verbose: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    info: (message: string, ...args: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    error: (message: string, ...args: any[]) => void;
+    nsfwOptions: nsfw.Options;
+}
 
-    protected client: FileSystemWatcherClient | undefined;
+/**
+ * This is a flag value passed around upon disposal.
+ */
+export const WatcherDisposal = Symbol('WatcherDisposal');
 
-    protected watcherSequence = 1;
-    protected readonly watchers = new Map<number, Disposable>();
-    protected readonly watcherOptions = new Map<number, WatcherOptions>();
+/**
+ * Because URIs can be watched by different clients, we'll track
+ * how many are listening for a given URI.
+ *
+ * This component wraps the whole start/stop process given some
+ * reference count.
+ *
+ * Once there are no more references the handle
+ * will wait for some time before destroying its resources.
+ */
+export class NsfwWatcher {
 
-    protected readonly toDispose = new DisposableCollection(
-        Disposable.create(() => this.setClient(undefined))
-    );
+    protected static debugIdSequence = 0;
 
-    protected changes = new FileChangeCollection();
+    protected disposed = false;
 
-    protected readonly options: {
-        verbose: boolean
-        info: (message: string, ...args: any[]) => void
-        error: (message: string, ...args: any[]) => void,
-        nsfwOptions: nsfw.Options
+    /**
+     * Used for debugging to keep track of the watchers.
+     */
+    protected debugId = NsfwWatcher.debugIdSequence++;
+
+    /**
+     * When this field is set, it means the nsfw instance was successfully started.
+     */
+    protected nsfw: nsfw.NSFW | undefined;
+
+    /**
+     * When the ref count hits zero, we schedule this watch handle to be disposed.
+     */
+    protected deferredDisposalTimer: NodeJS.Timer | undefined;
+
+    /**
+     * This deferred only rejects with `WatcherDisposal` and never resolves.
+     */
+    protected readonly deferredDisposalDeferred = new Deferred<never>();
+
+    /**
+     * We count each reference made to this watcher, per client.
+     *
+     * We do this to know where to send events via the network.
+     *
+     * An entry should be removed when its value hits zero.
+     */
+    protected readonly refsPerClient = new Map<number, { value: number }>();
+
+    /**
+     * Ensures that events are processed in the order they are emitted,
+     * despite being processed async.
+     */
+    protected readonly nsfwEventProcessingLock = new AsyncLock();
+
+    /**
+     * Resolves once this handle disposed itself and its resources. Never throws.
+     */
+    readonly whenDisposed: Promise<void> = this.deferredDisposalDeferred.promise.catch(() => undefined);
+
+    /**
+     * Promise that resolves when the watcher is fully started, or got disposed.
+     *
+     * Will reject if an error occured while starting.
+     *
+     * @returns `true` if successfully started, `false` if disposed early.
+     */
+    readonly whenStarted: Promise<boolean>;
+
+    constructor(
+        /** Initial reference to this handle. */
+        initialClientId: number,
+        /** Filesystem path to be watched. */
+        readonly fsPath: string,
+        /** Watcher-specific options */
+        readonly watcherOptions: NsfwWatcherOptions,
+        /** Logging and Nsfw options */
+        protected readonly nsfwFileSystemWatchServerOptions: NsfwFileSystemWatcherServerOptions,
+        /** The client to forward events to. */
+        protected readonly fileSystemWatcherClient: FileSystemWatcherClient2,
+        /** Amount of time in ms to wait once this handle ins't referenced anymore. */
+        protected readonly deferredDisposalTimeout = 10_000,
+    ) {
+        this.refsPerClient.set(initialClientId, { value: 1 });
+        this.whenStarted = this.start().then(() => true, error => {
+            if (error === WatcherDisposal) {
+                return false;
+            }
+            this._dispose();
+            this.fireError();
+            throw error;
+        });
+        this.debug('NEW', `initialClientId=${initialClientId}, fsPath=${fsPath}`);
+    }
+
+    addRef(clientId: number): void {
+        let refs = this.refsPerClient.get(clientId);
+        if (typeof refs === 'undefined') {
+            this.refsPerClient.set(clientId, refs = { value: 1 });
+        } else {
+            refs.value += 1;
+        }
+        const totalRefs = this.getTotalReferences();
+        // If it was zero before, 1 means we were revived:
+        const revived = totalRefs === 1;
+        if (revived) {
+            this.onRefsRevive();
+        }
+        this.debug('REF++', `clientId=${clientId}, clientRefs=${refs.value}, totalRefs=${totalRefs}. revived=${revived}`);
+    }
+
+    removeRef(clientId: number): void {
+        const refs = this.refsPerClient.get(clientId);
+        if (typeof refs === 'undefined') {
+            this.info('WARN REF--', `removed one too many reference: clientId=${clientId}`);
+            return;
+        }
+        refs.value -= 1;
+        // We must remove the key from `this.clientReferences` because
+        // we list active clients by reading the keys of this map.
+        if (refs.value === 0) {
+            this.refsPerClient.delete(clientId);
+        }
+        const totalRefs = this.getTotalReferences();
+        const dead = totalRefs === 0;
+        if (dead) {
+            this.onRefsReachZero();
+        }
+        this.debug('REF--', `clientId=${clientId}, clientRefs=${refs.value}, totalRefs=${totalRefs}, dead=${dead}`);
+    }
+
+    /**
+     * All clients with at least one active reference.
+     */
+    getClientIds(): number[] {
+        return Array.from(this.refsPerClient.keys());
+    }
+
+    /**
+     * Add the references for each client together.
+     */
+    getTotalReferences(): number {
+        let total = 0;
+        for (const refs of this.refsPerClient.values()) {
+            total += refs.value;
+        }
+        return total;
+    }
+
+    /**
+     * Returns true if at least one client listens to this handle.
+     */
+    isInUse(): boolean {
+        return this.refsPerClient.size > 0;
+    }
+
+    /**
+     * When starting a watcher, we'll first check and wait for the path to exists
+     * before running an NSFW watcher.
+     */
+    protected async start(): Promise<void> {
+        while (await this.orCancel(fsp.stat(this.fsPath).then(() => false, () => true))) {
+            await this.orCancel(new Promise(resolve => setTimeout(resolve, 500)));
+        }
+        const watcher = await this.orCancel(this.createNsfw());
+        await this.orCancel(watcher.start().then(() => {
+            this.debug('STARTED', `fsPath=${this.fsPath}, diposed=${this.disposed}`);
+            // The watcher could be disposed while it was starting, make sure to check for this:
+            if (this.disposed) {
+                this.stopNsfw(watcher);
+            }
+        }));
+        this.nsfw = watcher;
+    }
+
+    /**
+     * Given a started nsfw instance, gracefully shut it down.
+     */
+    protected async stopNsfw(watcher: nsfw.NSFW): Promise<void> {
+        await watcher.stop()
+            .then(() => 'success=true', error => error)
+            .then(status => this.debug('STOPPED', `fsPath=${this.fsPath}`, status));
+    }
+
+    protected async createNsfw(): Promise<nsfw.NSFW> {
+        const fsPath = await fsp.realpath(this.fsPath);
+        return nsfw(fsPath, events => this.handleNsfwEvents(events), {
+            ...this.nsfwFileSystemWatchServerOptions.nsfwOptions,
+            // The errorCallback is called whenever NSFW crashes *while* watching.
+            // See https://github.com/atom/github/issues/342
+            errorCallback: error => {
+                console.error(`NSFW service error on "${fsPath}":`, error);
+                this._dispose();
+                this.fireError();
+                // Make sure to call user's error handling code:
+                if (this.nsfwFileSystemWatchServerOptions.nsfwOptions.errorCallback) {
+                    this.nsfwFileSystemWatchServerOptions.nsfwOptions.errorCallback(error);
+                }
+            },
+        });
+    }
+
+    protected handleNsfwEvents(events: nsfw.ChangeEvent[]): void {
+        // Only process events if someone is listening.
+        if (this.isInUse()) {
+            // This callback is async, but nsfw won't wait for it to finish before firing the next one.
+            // We will use a lock/queue to make sure everything is processed in the order it arrives.
+            this.nsfwEventProcessingLock.acquire(async () => {
+                const fileChangeCollection = new FileChangeCollection();
+                await Promise.all(events.map(async event => {
+                    if (event.action === nsfw.actions.RENAMED) {
+                        const [oldPath, newPath] = await Promise.all([
+                            this.resolveEventPath(event.directory, event.oldFile!),
+                            this.resolveEventPath(event.newDirectory || event.directory, event.newFile!),
+                        ]);
+                        this.pushFileChange(fileChangeCollection, FileChangeType.DELETED, oldPath);
+                        this.pushFileChange(fileChangeCollection, FileChangeType.ADDED, newPath);
+                    } else {
+                        const path = await this.resolveEventPath(event.directory, event.file!);
+                        if (event.action === nsfw.actions.CREATED) {
+                            this.pushFileChange(fileChangeCollection, FileChangeType.ADDED, path);
+                        } else if (event.action === nsfw.actions.DELETED) {
+                            this.pushFileChange(fileChangeCollection, FileChangeType.DELETED, path);
+                        } else if (event.action === nsfw.actions.MODIFIED) {
+                            this.pushFileChange(fileChangeCollection, FileChangeType.UPDATED, path);
+                        }
+                    }
+                }));
+                const changes = fileChangeCollection.values();
+                // If all changes are part of the ignored files, the collection will be empty.
+                if (changes.length > 0) {
+                    this.fileSystemWatcherClient.onDidFilesChanged2({
+                        clients: this.getClientIds(),
+                        changes,
+                    });
+                }
+            });
+        }
+    }
+
+    protected async resolveEventPath(directory: string, file: string): Promise<string> {
+        const path = join(directory, file);
+        try {
+            return await fsp.realpath(path);
+        } catch {
+            try {
+                // file does not exist try to resolve directory
+                return join(await fsp.realpath(directory), file);
+            } catch {
+                // directory does not exist fall back to symlink
+                return path;
+            }
+        }
+    }
+
+    protected pushFileChange(changes: FileChangeCollection, type: FileChangeType, path: string): void {
+        if (!this.isIgnored(path)) {
+            const uri = FileUri.create(path).toString();
+            changes.push({ type, uri });
+        }
+    }
+
+    protected fireError(): void {
+        this.fileSystemWatcherClient.onError2({
+            clients: this.getClientIds(),
+            uri: this.fsPath,
+        });
+    }
+
+    /**
+     * Wrap a promise to reject as soon as this handle gets disposed.
+     */
+    protected async orCancel<T>(promise: Promise<T>): Promise<T> {
+        return Promise.race<T>([this.deferredDisposalDeferred.promise, promise]);
+    }
+
+    /**
+     * When references hit zero, we'll schedule disposal for a bit later.
+     *
+     * This allows new references to reuse this watcher instead of creating a new one.
+     *
+     * e.g. A frontend disconnects for a few milliseconds before reconnecting again.
+     */
+    protected onRefsReachZero(): void {
+        this.deferredDisposalTimer = setTimeout(() => this._dispose(), this.deferredDisposalTimeout);
+    }
+
+    /**
+     * If we get new references after hitting zero, let's unschedule our disposal and keep watching.
+     */
+    protected onRefsRevive(): void {
+        if (this.deferredDisposalTimer) {
+            clearTimeout(this.deferredDisposalTimer);
+            this.deferredDisposalTimer = undefined;
+        }
+    }
+
+    protected isIgnored(path: string): boolean {
+        return this.watcherOptions.ignored.length > 0
+            && this.watcherOptions.ignored.some(m => m.match(path));
+    }
+
+    /**
+     * Internal disposal mechanism.
+     */
+    protected async _dispose(): Promise<void> {
+        if (!this.disposed) {
+            this.disposed = true;
+            this.deferredDisposalDeferred.reject(WatcherDisposal);
+            if (this.nsfw) {
+                this.stopNsfw(this.nsfw);
+                this.nsfw = undefined;
+            }
+            this.debug('DISPOSED', `fsPath=${this.fsPath}`);
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    protected info(prefix: string, message: string, ...params: any[]): void {
+        this.nsfwFileSystemWatchServerOptions.info(`${prefix} NsfwWatcher(${this.debugId}): ${message}`, ...params);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    protected debug(prefix: string, message: string, ...params: any[]): void {
+        if (this.nsfwFileSystemWatchServerOptions.verbose) {
+            this.info(prefix, message, ...params);
+        }
+    }
+}
+
+/**
+ * Each time a client makes a watchRequest, we generate a unique watcherId for it.
+ *
+ * This watcherId will map to this handle type which keeps track of the clientId that made the request.
+ */
+export interface NsfwWatcherHandle {
+    clientId: number;
+    watcher: NsfwWatcher;
+}
+
+export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer2 {
+
+    protected client: FileSystemWatcherClient2 | undefined;
+
+    protected watcherId = 0;
+    protected readonly watchers = new Map<string, NsfwWatcher>();
+    protected readonly watcherHandles = new Map<number, NsfwWatcherHandle>();
+
+    protected readonly options: NsfwFileSystemWatcherServerOptions;
+
+    /**
+     * `this.client` is undefined until someone sets it.
+     */
+    protected readonly maybeClient: FileSystemWatcherClient2 = {
+        onDidFilesChanged2: event => this.client?.onDidFilesChanged2(event),
+        onError2: event => this.client?.onError2(event),
     };
 
-    constructor(options?: {
-        verbose?: boolean,
-        nsfwOptions?: nsfw.Options,
-        info?: (message: string, ...args: any[]) => void
-        error?: (message: string, ...args: any[]) => void
-    }) {
+    constructor(options?: Partial<NsfwFileSystemWatcherServerOptions>) {
         this.options = {
             nsfwOptions: {},
             verbose: false,
@@ -73,177 +409,75 @@ export class NsfwFileSystemWatcherServer implements FileSystemWatcherServer {
         };
     }
 
-    dispose(): void {
-        this.toDispose.dispose();
-    }
-
-    async watchFileChanges(uri: string, options?: WatchOptions): Promise<number> {
-        const watcherId = this.watcherSequence++;
-        const basePath = FileUri.fsPath(uri);
-        this.debug('Starting watching:', basePath);
-        const toDisposeWatcher = new DisposableCollection();
-        this.watchers.set(watcherId, toDisposeWatcher);
-        toDisposeWatcher.push(Disposable.create(() => this.watchers.delete(watcherId)));
-        if (fs.existsSync(basePath)) {
-            this.start(watcherId, basePath, options, toDisposeWatcher);
-        } else {
-            const toClearTimer = new DisposableCollection();
-            const timer = setInterval(() => {
-                if (fs.existsSync(basePath)) {
-                    toClearTimer.dispose();
-                    this.pushAdded(watcherId, basePath);
-                    this.start(watcherId, basePath, options, toDisposeWatcher);
-                }
-            }, 500);
-            toClearTimer.push(Disposable.create(() => clearInterval(timer)));
-            toDisposeWatcher.push(toClearTimer);
-        }
-        this.toDispose.push(toDisposeWatcher);
-        return watcherId;
-    }
-
-    protected async start(watcherId: number, basePath: string, rawOptions: WatchOptions | undefined, toDisposeWatcher: DisposableCollection): Promise<void> {
-        const options: WatchOptions = {
-            ignored: [],
-            ...rawOptions
-        };
-        if (options.ignored.length > 0) {
-            this.debug('Files ignored for watching', options.ignored);
-        }
-
-        let watcher: nsfw.NSFW | undefined = await nsfw(fs.realpathSync(basePath), (events: nsfw.ChangeEvent[]) => {
-            for (const event of events) {
-                if (event.action === nsfw.actions.CREATED) {
-                    this.pushAdded(watcherId, this.resolvePath(event.directory, event.file!));
-                }
-                if (event.action === nsfw.actions.DELETED) {
-                    this.pushDeleted(watcherId, this.resolvePath(event.directory, event.file!));
-                }
-                if (event.action === nsfw.actions.MODIFIED) {
-                    this.pushUpdated(watcherId, this.resolvePath(event.directory, event.file!));
-                }
-                if (event.action === nsfw.actions.RENAMED) {
-                    this.pushDeleted(watcherId, this.resolvePath(event.directory, event.oldFile!));
-                    this.pushAdded(watcherId, this.resolvePath(event.newDirectory || event.directory, event.newFile!));
-                }
-            }
-        }, {
-            errorCallback: error => {
-                // see https://github.com/atom/github/issues/342
-                console.warn(`Failed to watch "${basePath}":`, error);
-                if (error === 'Inotify limit reached') {
-                    if (this.client) {
-                        this.client.onError();
-                    }
-                }
-                this.unwatchFileChanges(watcherId);
-            },
-            ...this.options.nsfwOptions
-        });
-        await watcher.start();
-        this.options.info('Started watching:', basePath);
-        if (toDisposeWatcher.disposed) {
-            this.debug('Stopping watching:', basePath);
-            await watcher.stop();
-            // remove a reference to nsfw otherwise GC cannot collect it
-            watcher = undefined;
-            this.options.info('Stopped watching:', basePath);
-            return;
-        }
-        toDisposeWatcher.push(Disposable.create(async () => {
-            this.watcherOptions.delete(watcherId);
-            if (watcher) {
-                this.debug('Stopping watching:', basePath);
-                await watcher.stop();
-                // remove a reference to nsfw otherwise GC cannot collect it
-                watcher = undefined;
-                this.options.info('Stopped watching:', basePath);
-            }
-        }));
-        this.watcherOptions.set(watcherId, {
-            ignored: options.ignored.map(pattern => new Minimatch(pattern, { dot: true }))
-        });
-    }
-
-    unwatchFileChanges(watcherId: number): Promise<void> {
-        const disposable = this.watchers.get(watcherId);
-        if (disposable) {
-            this.watchers.delete(watcherId);
-            disposable.dispose();
-        }
-        return Promise.resolve();
-    }
-
-    setClient(client: FileSystemWatcherClient | undefined): void {
-        if (client && this.toDispose.disposed) {
-            return;
-        }
+    setClient(client: FileSystemWatcherClient2 | undefined): void {
         this.client = client;
     }
 
-    protected pushAdded(watcherId: number, path: string): void {
-        this.debug('Added:', path);
-        this.pushFileChange(watcherId, path, FileChangeType.ADDED);
-    }
-
-    protected pushUpdated(watcherId: number, path: string): void {
-        this.debug('Updated:', path);
-        this.pushFileChange(watcherId, path, FileChangeType.UPDATED);
-    }
-
-    protected pushDeleted(watcherId: number, path: string): void {
-        this.debug('Deleted:', path);
-        this.pushFileChange(watcherId, path, FileChangeType.DELETED);
-    }
-
-    protected pushFileChange(watcherId: number, path: string, type: FileChangeType): void {
-        if (this.isIgnored(watcherId, path)) {
-            return;
+    /**
+     * A specific client requests us to watch a given `uri` according to some `options`.
+     *
+     * We internally re-use all the same `(uri, options)` pairs.
+     */
+    async watchFileChanges2(clientId: number, uri: string, options?: WatchOptions): Promise<number> {
+        const resolvedOptions = this.resolveWatchOptions(options);
+        const watcherKey = this.getWatcherKey(uri, resolvedOptions);
+        let watcher = this.watchers.get(watcherKey);
+        if (typeof watcher === 'undefined') {
+            const fsPath = FileUri.fsPath(uri);
+            const watcherOptions: NsfwWatcherOptions = {
+                ignored: resolvedOptions.ignored
+                    .map(pattern => new Minimatch(pattern, { dot: true })),
+            };
+            watcher = new NsfwWatcher(clientId, fsPath, watcherOptions, this.options, this.maybeClient);
+            watcher.whenDisposed.then(() => this.watchers.delete(watcherKey));
+            this.watchers.set(watcherKey, watcher);
+        } else {
+            watcher.addRef(clientId);
         }
-
-        const uri = FileUri.create(path).toString();
-        this.changes.push({ uri, type });
-
-        this.fireDidFilesChanged();
+        const watcherId = this.watcherId++;
+        this.watcherHandles.set(watcherId, { clientId, watcher });
+        watcher.whenDisposed.then(() => this.watcherHandles.delete(watcherId));
+        return watcherId;
     }
 
-    protected resolvePath(directory: string, file: string): string {
-        const path = paths.join(directory, file);
-        try {
-            return fs.realpathSync(path);
-        } catch {
-            try {
-                // file does not exist try to resolve directory
-                return paths.join(fs.realpathSync(directory), file);
-            } catch {
-                // directory does not exist fall back to symlink
-                return path;
-            }
+    async unwatchFileChanges2(watcherId: number): Promise<void> {
+        const handle = this.watcherHandles.get(watcherId);
+        if (typeof handle === 'undefined') {
+            console.warn(`tried to de-allocate a disposed watcher: watcherId=${watcherId}`);
+        } else {
+            this.watcherHandles.delete(watcherId);
+            handle.watcher.removeRef(handle.clientId);
         }
     }
 
     /**
-     * Fires file changes to clients.
-     * It is debounced in the case if the filesystem is spamming to avoid overwhelming clients with events.
+     * Given some `URI` and some `WatchOptions`, generate a unique key.
      */
-    protected readonly fireDidFilesChanged: () => void = debounce(() => this.doFireDidFilesChanged(), 50);
-    protected doFireDidFilesChanged(): void {
-        const changes = this.changes.values();
-        this.changes = new FileChangeCollection();
-        const event = { changes };
-        if (this.client) {
-            this.client.onDidFilesChanged(event);
-        }
+    protected getWatcherKey(uri: string, options: WatchOptions): string {
+        return [
+            uri,
+            options.ignored.slice(0).sort().join()  // use a **sorted copy** of `ignored` as part of the key
+        ].join();
     }
 
-    protected isIgnored(watcherId: number, path: string): boolean {
-        const options = this.watcherOptions.get(watcherId);
-        return !!options && options.ignored.length > 0 && options.ignored.some(m => m.match(path));
+    /**
+     * Return fully qualified options.
+     */
+    protected resolveWatchOptions(options?: WatchOptions): WatchOptions {
+        return {
+            ignored: [],
+            ...options,
+        };
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     protected debug(message: string, ...params: any[]): void {
         if (this.options.verbose) {
             this.options.info(message, ...params);
         }
+    }
+
+    dispose(): void {
+        // Singletons shouldn't be disposed...
     }
 }

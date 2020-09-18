@@ -38,7 +38,7 @@ describe('nsfw-filesystem-watcher', function (): void {
     beforeEach(async () => {
         root = FileUri.create(fs.realpathSync(temp.mkdirSync('node-fs-root')));
         watcherServer = createNsfwFileSystemWatcherServer();
-        watcherId = await watcherServer.watchFileChanges(root.toString());
+        watcherId = await watcherServer.watchFileChanges2(0, root.toString());
         await sleep(2000);
     });
 
@@ -50,15 +50,14 @@ describe('nsfw-filesystem-watcher', function (): void {
     it('Should receive file changes events from in the workspace by default.', async function (): Promise<void> {
         if (process.platform === 'win32') {
             this.skip();
-            return;
         }
         const actualUris = new Set<string>();
 
         const watcherClient = {
-            onDidFilesChanged(event: DidFilesChangedParams): void {
+            onDidFilesChanged2(event: DidFilesChangedParams): void {
                 event.changes.forEach(c => actualUris.add(c.uri.toString()));
             },
-            onError(): void {
+            onError2(): void {
             }
         };
         watcherServer.setClient(watcherClient);
@@ -87,21 +86,20 @@ describe('nsfw-filesystem-watcher', function (): void {
     it('Should not receive file changes events from in the workspace by default if unwatched', async function (): Promise<void> {
         if (process.platform === 'win32') {
             this.skip();
-            return;
         }
         const actualUris = new Set<string>();
 
         const watcherClient = {
-            onDidFilesChanged(event: DidFilesChangedParams): void {
+            onDidFilesChanged2(event: DidFilesChangedParams): void {
                 event.changes.forEach(c => actualUris.add(c.uri.toString()));
             },
-            onError(): void {
+            onError2(): void {
             }
         };
         watcherServer.setClient(watcherClient);
 
         /* Unwatch root */
-        watcherServer.unwatchFileChanges(watcherId);
+        watcherServer.unwatchFileChanges2(watcherId);
 
         fs.mkdirSync(FileUri.fsPath(root.resolve('foo')));
         expect(fs.statSync(FileUri.fsPath(root.resolve('foo'))).isDirectory()).to.be.true;
