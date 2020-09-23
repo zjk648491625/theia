@@ -146,6 +146,10 @@ export class CompletionAdapter {
             };
         }
 
+        const tags = (!!item.tags || item.deprecated === true)
+            ? [...item.tags]
+            : undefined;
+
         return {
             id,
             parentId,
@@ -161,7 +165,8 @@ export class CompletionAdapter {
             range,
             additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(Converter.fromTextEdit),
             command: this.commands.converter.toSafeCommand(item.command, toDispose),
-            commitCharacters: item.commitCharacters
+            commitCharacters: item.commitCharacters,
+            tags
         };
     }
 
