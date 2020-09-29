@@ -99,6 +99,7 @@ export class TaskTerminalWidgetManager {
         });
 
         this.terminalService.onDidCreateTerminal(async (widget: TerminalWidget) => {
+            console.log('*** TaskTerminalWidgetManager *** onDidCreateTerminal ');
             const terminal = TaskTerminalWidget.is(widget) && widget;
             if (terminal) {
                 const didConnectListener = terminal.onDidOpen(async () => {

@@ -164,7 +164,9 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
     protected init(): void {
         this.shell.currentChanged.connect(() => this.updateCurrentTerminal());
         this.widgetManager.onDidCreateWidget(({ widget }) => {
+            console.log('*** TerminalFrontendContribution *** onDidCreateWidget ');
             if (widget instanceof TerminalWidget) {
+                console.log('*** TerminalFrontendContribution *** onDidCreateWidget *** widget instanceof TerminalWidget *** fire!!!!');
                 this.updateCurrentTerminal();
                 this.onDidCreateTerminalEmitter.fire(widget);
                 this.setLastUsedTerminal(widget);
